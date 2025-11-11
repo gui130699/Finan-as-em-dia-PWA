@@ -10,7 +10,8 @@ import os
 import uuid
 
 app = Flask(__name__)
-app.secret_key = 'financas_em_dia_2025_seguro_web_app'
+# Usar variável de ambiente em produção ou chave padrão em desenvolvimento
+app.secret_key = os.environ.get('SECRET_KEY', 'financas_em_dia_2025_seguro_web_app')
 
 # Testar conexão com Supabase
 try:
