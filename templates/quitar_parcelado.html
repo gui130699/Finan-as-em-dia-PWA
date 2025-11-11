@@ -1,0 +1,147 @@
+{% extends "base.html" %}
+
+{% block title %}Quitar Parcelado - Finanças em Dia{% endblock %}
+
+{% block content %}
+<div class="page-header mb-4">
+    <h2><i class="bi bi-cash-stack"></i> Quitar Contrato Parcelado</h2>
+</div>
+
+<!-- Informações do Contrato -->
+<div class="card mb-4">
+    <div class="card-header bg-info text-white">
+        <h5 class="mb-0">Informações do Contrato</h5>
+    </div>
+    <div class="card-body">
+        {% if parcelas %}
+        <div class="row">
+            <div class="col-md-6">
+                <p><strong>Descrição:</strong> {{ parcelas[0].descricao }}</p>
+                <p><strong>Tipo:</strong> 
+                    {% if parcelas[0].tipo == 'Receita' %}
+                        <span class="badge bg-success">{{ parcelas[0].tipo }}</span>
+                    {% else %}
+                        <span class="badge bg-danger">{{ parcelas[0].tipo }}</span>
+                    {% endif %}
+                </p>
+            </div>
+            <div class="col-md-6">
+                <p><strong>Total de Parcelas Pendentes:</strong> {{ parcelas|length }}</p>
+                <p><strong>Valor Total Pendente:</strong> 
+                    <span class="text-primary">
+                        R$ {{ "%.2f"|format(parcelas|sum(attribute='valor')) }}
+                    </span>
+                </p>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Opções de Quitação -->
+<div class="row">
+    <!-- Quitação Integral -->
+    <div class="col-md-6">
+        <div class="card h-100">
+            <div class="card-header bg-success text-white">
+                <h5 class="mb-0"><i class="bi bi-check-all"></i> Quitação Integral</h5>
+            </div>
+            <div class="card-body">
+                <p>Quita <strong>todas</strong> as parcelas pendentes de uma vez.</p>
+                <form method="POST" action="{{ url_for('quitar_parcelado', contrato_id=contrato_id) }}">
+                    <input type="hidden" name="tipo_quitacao" value="integral">
+                    
+                    <div class="mb-3">
+                        <label for="desconto_integral" class="form-label">Desconto (R$)</label>
+                        <input type="number" class="form-control" id="desconto_integral" 
+                               name="desconto" step="0.01" min="0" value="0">
+                        <div class="form-text">
+                            Valor do desconto obtido na quitação
+                        </div>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-success w-100" 
+                            onclick="return confirm('Confirma quitação INTEGRAL de todas as parcelas?');">
+                        <i class="bi bi-cash-coin"></i> Quitar Integralmente
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Quitação Parcial -->
+    <div class="col-md-6">
+        <div class="card h-100">
+            <div class="card-header bg-warning text-dark">
+                <h5 class="mb-0"><i class="bi bi-ui-checks"></i> Quitação Parcial</h5>
+            </div>
+            <div class="card-body">
+                <p>Escolha <strong>quais parcelas</strong> deseja quitar.</p>
+                <form method="POST" action="{{ url_for('quitar_parcial') }}">
+                    <input type="hidden" name="contrato_id" value="{{ contrato_id }}">
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Selecione as Parcelas:</label>
+                        <div style="max-height: 200px; overflow-y: auto; border: 1px solid #dee2e6; padding: 10px; border-radius: 5px;">
+                            {% for parcela in parcelas %}
+                            <div class="form-check">
+                                <input class="form-check-input parcela-check" type="checkbox" 
+                                       name="parcelas_ids" value="{{ parcela.id }}" 
+                                       id="parcela_{{ parcela.id }}"
+                                       data-valor="{{ parcela.valor }}">
+                                <label class="form-check-label" for="parcela_{{ parcela.id }}">
+                                    Parcela {{ parcela.parcela_atual }}/{{ parcela.parcela_total }} - 
+                                    {{ parcela.data_formatada }} - 
+                                    <strong>{{ parcela.valor_formatado }}</strong>
+                                </label>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="desconto_parcial" class="form-label">Desconto (R$)</label>
+                        <input type="number" class="form-control" id="desconto_parcial" 
+                               name="desconto" step="0.01" min="0" value="0">
+                    </div>
+                    
+                    <div class="alert alert-info">
+                        <strong>Total Selecionado:</strong> 
+                        <span id="totalSelecionado">R$ 0,00</span>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-warning w-100" 
+                            onclick="return confirm('Confirma quitação das parcelas selecionadas?');">
+                        <i class="bi bi-cash"></i> Quitar Parcelas Selecionadas
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="mt-3">
+    <a href="{{ url_for('contas_parceladas') }}" class="btn btn-secondary">
+        <i class="bi bi-arrow-left"></i> Voltar
+    </a>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Calcular total selecionado
+    document.querySelectorAll('.parcela-check').forEach(checkbox => {
+        checkbox.addEventListener('change', calcularTotal);
+    });
+    
+    function calcularTotal() {
+        let total = 0;
+        document.querySelectorAll('.parcela-check:checked').forEach(checkbox => {
+            total += parseFloat(checkbox.dataset.valor);
+        });
+        
+        document.getElementById('totalSelecionado').textContent = 
+            'R$ ' + total.toFixed(2).replace('.', ',');
+    }
+</script>
+{% endblock %}

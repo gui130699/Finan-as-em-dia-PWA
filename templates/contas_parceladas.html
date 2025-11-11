@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+
+{% block title %}Contas Parceladas - Finanças em Dia{% endblock %}
+
+{% block content %}
+<div class="page-header mb-4">
+    <h2><i class="bi bi-credit-card"></i> Contas Parceladas</h2>
+</div>
+
+<!-- Tabela de Contratos Parcelados -->
+<div class="card">
+    <div class="card-header">
+        <h5 class="mb-0">Contratos com Parcelas Pendentes</h5>
+    </div>
+    <div class="card-body">
+        {% if contratos %}
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>ID Ref.</th>
+                        <th>Descrição</th>
+                        <th>Categoria</th>
+                        <th>Tipo</th>
+                        <th>Parcelas</th>
+                        <th class="text-end">Total Pendente</th>
+                        <th>Próximo Venc.</th>
+                        <th class="text-center">Ação</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for contrato in contratos %}
+                    <tr>
+                        <td><code>{{ contrato.numero_contrato[:8] }}</code></td>
+                        <td><strong>{{ contrato.descricao }}</strong></td>
+                        <td>{{ contrato.categoria_nome }}</td>
+                        <td>
+                            {% if contrato.tipo == 'receita' %}
+                                <span class="badge bg-success">Receita</span>
+                            {% else %}
+                                <span class="badge bg-danger">Despesa</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ contrato.parcelas_pagas }}/{{ contrato.total_parcelas }} pagas</td>
+                        <td class="text-end"><strong>R$ {{ "%.2f"|format(contrato.valor_parcela * contrato.parcelas_pendentes) }}</strong></td>
+                        <td>{{ contrato.proxima_data_formatada }}</td>
+                        <td class="text-center">
+                            <a href="{{ url_for('quitar_parcelado', contrato_id=contrato.numero_contrato) }}" 
+                               class="btn btn-sm btn-warning">
+                                <i class="bi bi-cash-stack"></i> Quitar
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="alert alert-info mb-0">
+            <i class="bi bi-info-circle"></i> Nenhum contrato parcelado com parcelas pendentes.
+            <hr>
+            <p class="mb-0">
+                Para criar um lançamento parcelado, vá até a aba 
+                <a href="{{ url_for('lancamentos') }}">Lançamentos</a> 
+                e defina a quantidade de parcelas ao criar um novo lançamento.
+            </p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<div class="alert alert-warning mt-4">
+    <h5><i class="bi bi-exclamation-triangle"></i> Como funciona a Quitação?</h5>
+    <ul class="mb-0">
+        <li><strong>Quitação Integral:</strong> Quita todas as parcelas pendentes do contrato de uma vez, 
+            gerando um único lançamento no mês atual (com ou sem desconto).</li>
+        <li><strong>Quitação Parcial:</strong> Permite escolher quais parcelas específicas você quer quitar, 
+            também gerando um lançamento no mês atual.</li>
+        <li>As parcelas quitadas são removidas do sistema após a quitação.</li>
+    </ul>
+</div>
+{% endblock %}

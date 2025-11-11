@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+
+{% block title %}Home - Finanças em Dia{% endblock %}
+
+{% block content %}
+<div class="page-header mb-4">
+    <h2><i class="bi bi-house-door"></i> Resumo Financeiro</h2>
+</div>
+
+<!-- Seletor de Mês/Ano -->
+<div class="card mb-4">
+    <div class="card-body">
+        <form method="GET" action="{{ url_for('home') }}" class="row g-3 align-items-end">
+            <div class="col-md-3">
+                <label for="mes" class="form-label">Mês</label>
+                <select class="form-select" id="mes" name="mes">
+                    <option value="1" {% if mes == 1 %}selected{% endif %}>Janeiro</option>
+                    <option value="2" {% if mes == 2 %}selected{% endif %}>Fevereiro</option>
+                    <option value="3" {% if mes == 3 %}selected{% endif %}>Março</option>
+                    <option value="4" {% if mes == 4 %}selected{% endif %}>Abril</option>
+                    <option value="5" {% if mes == 5 %}selected{% endif %}>Maio</option>
+                    <option value="6" {% if mes == 6 %}selected{% endif %}>Junho</option>
+                    <option value="7" {% if mes == 7 %}selected{% endif %}>Julho</option>
+                    <option value="8" {% if mes == 8 %}selected{% endif %}>Agosto</option>
+                    <option value="9" {% if mes == 9 %}selected{% endif %}>Setembro</option>
+                    <option value="10" {% if mes == 10 %}selected{% endif %}>Outubro</option>
+                    <option value="11" {% if mes == 11 %}selected{% endif %}>Novembro</option>
+                    <option value="12" {% if mes == 12 %}selected{% endif %}>Dezembro</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label for="ano" class="form-label">Ano</label>
+                <input type="number" class="form-control" id="ano" name="ano" 
+                       value="{{ ano }}" min="2020" max="2050">
+            </div>
+            <div class="col-md-3">
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-search"></i> Buscar
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Cards de Totais -->
+<div class="row mb-4">
+    <div class="col-md-4">
+        <div class="card text-white bg-success">
+            <div class="card-header">
+                <i class="bi bi-arrow-up-circle"></i> Receitas Recebidas
+            </div>
+            <div class="card-body">
+                <h3 class="card-title">R$ {{ "%.2f"|format(totais.total_receitas) }}</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card text-white bg-danger">
+            <div class="card-header">
+                <i class="bi bi-arrow-down-circle"></i> Despesas Pagas
+            </div>
+            <div class="card-body">
+                <h3 class="card-title">R$ {{ "%.2f"|format(totais.total_despesas) }}</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card text-white {% if totais.saldo >= 0 %}bg-primary{% else %}bg-warning{% endif %}">
+            <div class="card-header">
+                <i class="bi bi-wallet2"></i> Saldo do Mês
+            </div>
+            <div class="card-body">
+                <h3 class="card-title">R$ {{ "%.2f"|format(totais.saldo) }}</h3>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Tabela de Lançamentos -->
+<div class="card">
+    <div class="card-header">
+        <h5 class="mb-0">
+            <i class="bi bi-list-ul"></i> Lançamentos do Mês
+        </h5>
+    </div>
+    <div class="card-body">
+        {% if lancamentos %}
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>Data</th>
+                        <th>Descrição</th>
+                        <th>Categoria</th>
+                        <th>Tipo</th>
+                        <th>Status</th>
+                        <th>Parcela</th>
+                        <th class="text-end">Valor</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for lanc in lancamentos %}
+                    <tr class="{{ lanc.classe_css }}">
+                        <td>{{ lanc.data_formatada }}</td>
+                        <td>{{ lanc.descricao }}</td>
+                        <td>{{ lanc.categoria_nome }}</td>
+                        <td>
+                            {% if lanc.tipo == 'Receita' %}
+                                <span class="badge bg-success">{{ lanc.tipo }}</span>
+                            {% else %}
+                                <span class="badge bg-danger">{{ lanc.tipo }}</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ lanc.status }}</td>
+                        <td>{{ lanc.parcela_texto }}</td>
+                        <td class="text-end"><strong>{{ lanc.valor_formatado }}</strong></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="alert alert-info mb-0">
+            <i class="bi bi-info-circle"></i> Nenhum lançamento encontrado para este mês.
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
