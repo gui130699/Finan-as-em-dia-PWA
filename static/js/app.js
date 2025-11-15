@@ -73,7 +73,11 @@ async function showPage(page) {
             app.innerHTML = getLancamentosHTML();
             await loadCategorias();
             await loadLancamentos();
-            document.getElementById('lanc-data').valueAsDate = new Date();
+            const hoje = new Date();
+            const dataLocal = hoje.getFullYear() + '-' + 
+                String(hoje.getMonth() + 1).padStart(2, '0') + '-' + 
+                String(hoje.getDate()).padStart(2, '0');
+            document.getElementById('lanc-data').value = dataLocal;
             inicializarFormularioLancamento();
             break;
         case 'categorias':
@@ -915,7 +919,11 @@ async function handleAddLancamento(event) {
         
         showAlert(msg, 'success');
         event.target.reset();
-        document.getElementById('lanc-data').valueAsDate = new Date();
+        const hoje = new Date();
+        const dataLocal = hoje.getFullYear() + '-' + 
+            String(hoje.getMonth() + 1).padStart(2, '0') + '-' + 
+            String(hoje.getDate()).padStart(2, '0');
+        document.getElementById('lanc-data').value = dataLocal;
         document.getElementById('lanc-eh-parcelado').checked = false;
         document.getElementById('lanc-eh-conta-fixa').checked = false;
         document.getElementById('campos-parcelamento').style.display = 'none';
