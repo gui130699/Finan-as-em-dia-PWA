@@ -586,14 +586,14 @@ function getLancamentosHTML() {
                                 </div>
                                 <div class="col-md-4 mb-3">
                                     <label class="form-label" id="label-valor">Valor Total</label>
-                                    <input type="number" step="0.01" class="form-control" id="lanc-valor" required>
+                                    <input type="number" step="0.01" class="form-control" id="lanc-valor">
                                 </div>
                             </div>
                         </div>
                         <div id="campo-valor-simples" class="row">
                             <div class="col-md-12 mb-3">
                                 <label class="form-label">Valor</label>
-                                <input type="number" step="0.01" class="form-control" id="lanc-valor-simples" required>
+                                <input type="number" step="0.01" class="form-control" id="lanc-valor-simples">
                             </div>
                         </div>
                         <button type="submit" class="btn btn-success">
@@ -824,6 +824,11 @@ async function handleAddLancamento(event) {
         const tipoValor = document.getElementById('lanc-tipo-valor').value;
         const valorInput = parseFloat(document.getElementById('lanc-valor').value);
         
+        if (!valorInput || isNaN(valorInput)) {
+            showAlert('Preencha o valor!', 'warning');
+            return;
+        }
+        
         if (tipoValor === 'total') {
             // Valor total - dividir pelas parcelas
             valor = valorInput / parcelas;
@@ -833,6 +838,11 @@ async function handleAddLancamento(event) {
         }
     } else {
         valor = parseFloat(document.getElementById('lanc-valor-simples').value);
+        
+        if (!valor || isNaN(valor)) {
+            showAlert('Preencha o valor!', 'warning');
+            return;
+        }
     }
     
     try {
