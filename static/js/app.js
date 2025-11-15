@@ -554,12 +554,30 @@ function getLancamentosHTML() {
                             </div>
                         </div>
                         <div class="row">
-                            <div class="col-md-12 mb-3">
+                            <div class="col-md-6 mb-3">
                                 <div class="form-check">
                                     <input class="form-check-input" type="checkbox" id="lanc-eh-parcelado">
                                     <label class="form-check-label" for="lanc-eh-parcelado">
                                         <strong>Lançamento Parcelado</strong>
                                     </label>
+                                </div>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="lanc-eh-conta-fixa">
+                                    <label class="form-check-label" for="lanc-eh-conta-fixa">
+                                        <strong>Conta Fixa</strong>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                        <div id="campo-conta-fixa" style="display: none;">
+                            <div class="row">
+                                <div class="col-md-12 mb-3">
+                                    <label class="form-label">Selecione a Conta Fixa</label>
+                                    <select class="form-select" id="lanc-conta-fixa-select">
+                                        <option value="">Carregando...</option>
+                                    </select>
                                 </div>
                             </div>
                         </div>
@@ -626,6 +644,9 @@ function getLancamentosHTML() {
                             <input type="month" class="form-control" id="filtro-mes" value="${mesAtual}" onchange="loadLancamentos()">
                         </div>
                     </div>
+                    <button type="button" class="btn btn-primary" onclick="gerarContasFixasMesAtual()">
+                        <i class="bi bi-arrow-repeat"></i> Gerar Contas Fixas do Mês
+                    </button>
                 </div>
             </div>
             
@@ -669,6 +690,32 @@ async function loadCategorias() {
     }
 }
 
+async function loadContasFixasSelect() {
+    try {
+        const { data, error } = await supabase
+            .from('contas_fixas')
+            .select('id, descricao, valor, categorias(nome)')
+            .eq('usuario_id', currentUser.id)
+            .eq('ativa', true)
+            .order('descricao');
+        
+        if (error) throw error;
+        
+        const select = document.getElementById('lanc-conta-fixa-select');
+        if (select) {
+            select.innerHTML = '<option value="">Selecione a conta fixa...</option>' +
+                (data || []).map(cf => {
+                    const valor = parseFloat(cf.valor).toFixed(2);
+                    const categoriaNome = cf.categorias ? cf.categorias.nome : 'Sem categoria';
+                    return `<option value="${cf.id}">${cf.descricao} - ${categoriaNome} - R$ ${valor}</option>`;
+                }).join('');
+        }
+    } catch (err) {
+        console.error('Erro ao carregar contas fixas:', err);
+        showAlert('Erro ao carregar contas fixas: ' + err.message, 'danger');
+    }
+}
+
 function inicializarFormularioLancamento() {
     const checkParcelado = document.getElementById('lanc-eh-parcelado');
     const camposParcelamento = document.getElementById('campos-parcelamento');
@@ -676,13 +723,33 @@ function inicializarFormularioLancamento() {
     const tipoValor = document.getElementById('lanc-tipo-valor');
     const labelValor = document.getElementById('label-valor');
     
+    const checkContaFixa = document.getElementById('lanc-eh-conta-fixa');
+    const campoContaFixa = document.getElementById('campo-conta-fixa');
+    
     checkParcelado.addEventListener('change', function() {
         if (this.checked) {
             camposParcelamento.style.display = 'block';
             campoValorSimples.style.display = 'none';
+            // Desmarcar conta fixa (mutuamente exclusivos)
+            checkContaFixa.checked = false;
+            campoContaFixa.style.display = 'none';
         } else {
             camposParcelamento.style.display = 'none';
             campoValorSimples.style.display = 'block';
+        }
+    });
+    
+    checkContaFixa.addEventListener('change', function() {
+        if (this.checked) {
+            campoContaFixa.style.display = 'block';
+            // Desmarcar parcelado (mutuamente exclusivos)
+            checkParcelado.checked = false;
+            camposParcelamento.style.display = 'none';
+            campoValorSimples.style.display = 'block';
+            // Carregar contas fixas no select
+            loadContasFixasSelect();
+        } else {
+            campoContaFixa.style.display = 'none';
         }
     });
     
@@ -695,13 +762,169 @@ function inicializarFormularioLancamento() {
     });
 }
 
+async function gerarContasFixasMesAtual() {
+    try {
+        const mes = document.getElementById('filtro-mes')?.value || mesAtual;
+        const [ano, mesNum] = mes.split('-').map(Number);
+        
+        // Buscar todas as contas fixas ativas
+        const { data: contasFixas, error: cfError } = await supabase
+            .from('contas_fixas')
+            .select('*')
+            .eq('usuario_id', currentUser.id)
+            .eq('ativa', true);
+        
+        if (cfError) throw cfError;
+        
+        if (!contasFixas || contasFixas.length === 0) {
+            showAlert('Nenhuma conta fixa ativa encontrada para gerar.', 'warning');
+            return;
+        }
+        
+        let geradas = 0;
+        let jaCriadas = 0;
+        
+        for (const cf of contasFixas) {
+            // Ajustar dia de vencimento para o mês selecionado
+            const ultimoDia = new Date(ano, mesNum, 0).getDate();
+            const dia = Math.min(cf.dia_vencimento, ultimoDia);
+            const dataLancamento = `${ano}-${String(mesNum).padStart(2, '0')}-${String(dia).padStart(2, '0')}`;
+            
+            // Verificar se já existe um lançamento para esta conta fixa neste mês
+            const { data: existente, error: checkError } = await supabase
+                .from('lancamentos')
+                .select('id')
+                .eq('usuario_id', currentUser.id)
+                .eq('conta_fixa_id', cf.id)
+                .gte('data', `${mes}-01`)
+                .lte('data', `${mes}-${ultimoDia}`)
+                .limit(1);
+            
+            if (checkError) throw checkError;
+            
+            if (existente && existente.length > 0) {
+                jaCriadas++;
+                continue;
+            }
+            
+            // Criar o lançamento
+            const { error: insertError } = await supabase
+                .from('lancamentos')
+                .insert({
+                    usuario_id: currentUser.id,
+                    data: dataLancamento,
+                    descricao: cf.descricao,
+                    categoria_id: cf.categoria_id,
+                    valor: cf.valor,
+                    tipo: cf.tipo,
+                    status: 'pendente',
+                    conta_fixa_id: cf.id,
+                    parcela_atual: null,
+                    total_parcelas: null
+                });
+            
+            if (insertError) throw insertError;
+            geradas++;
+        }
+        
+        let mensagem = `${geradas} conta(s) fixa(s) gerada(s) com sucesso!`;
+        if (jaCriadas > 0) {
+            mensagem += ` (${jaCriadas} já existia(m) neste mês)`;
+        }
+        
+        showAlert(mensagem, 'success');
+        await loadLancamentos();
+        
+    } catch (err) {
+        console.error('Erro ao gerar contas fixas:', err);
+        showAlert('Erro ao gerar contas fixas: ' + err.message, 'danger');
+    }
+}
+
 async function handleAddLancamento(event) {
     event.preventDefault();
     
+    const ehParcelado = document.getElementById('lanc-eh-parcelado').checked;
+    const ehContaFixa = document.getElementById('lanc-eh-conta-fixa').checked;
+    
+    // Se for conta fixa, buscar dados da conta selecionada
+    if (ehContaFixa) {
+        const contaFixaId = parseInt(document.getElementById('lanc-conta-fixa-select').value);
+        
+        if (!contaFixaId) {
+            showAlert('Selecione uma conta fixa.', 'warning');
+            return;
+        }
+        
+        try {
+            // Buscar dados da conta fixa
+            const { data: contaFixa, error: cfError } = await supabase
+                .from('contas_fixas')
+                .select('*')
+                .eq('id', contaFixaId)
+                .single();
+            
+            if (cfError) throw cfError;
+            
+            const data = document.getElementById('lanc-data').value;
+            
+            // Verificar se já existe lançamento desta conta fixa neste mês
+            const [ano, mes] = data.split('-');
+            const mesRef = `${ano}-${mes}`;
+            const ultimoDia = new Date(parseInt(ano), parseInt(mes), 0).getDate();
+            
+            const { data: existente, error: checkError } = await supabase
+                .from('lancamentos')
+                .select('id')
+                .eq('usuario_id', currentUser.id)
+                .eq('conta_fixa_id', contaFixaId)
+                .gte('data', `${mesRef}-01`)
+                .lte('data', `${mesRef}-${ultimoDia}`)
+                .limit(1);
+            
+            if (checkError) throw checkError;
+            
+            if (existente && existente.length > 0) {
+                showAlert('Já existe um lançamento desta conta fixa neste mês.', 'warning');
+                return;
+            }
+            
+            // Criar lançamento a partir da conta fixa
+            const { error: insertError } = await supabase
+                .from('lancamentos')
+                .insert([{
+                    usuario_id: currentUser.id,
+                    data,
+                    descricao: contaFixa.descricao,
+                    categoria_id: contaFixa.categoria_id,
+                    valor: contaFixa.valor,
+                    tipo: contaFixa.tipo,
+                    status: 'pendente',
+                    conta_fixa_id: contaFixaId,
+                    parcela_atual: null,
+                    total_parcelas: null
+                }]);
+            
+            if (insertError) throw insertError;
+            
+            showAlert('Lançamento da conta fixa adicionado com sucesso!', 'success');
+            event.target.reset();
+            document.getElementById('lanc-data').valueAsDate = new Date();
+            document.getElementById('lanc-eh-conta-fixa').checked = false;
+            document.getElementById('campo-conta-fixa').style.display = 'none';
+            await loadLancamentos();
+            return;
+            
+        } catch (err) {
+            showAlert('Erro ao adicionar lançamento da conta fixa: ' + err.message, 'danger');
+            return;
+        }
+    }
+    
+    // Fluxo normal para lançamentos manuais
     const data = document.getElementById('lanc-data').value;
     const descricao = document.getElementById('lanc-descricao').value;
     const categoria_id = parseInt(document.getElementById('lanc-categoria').value);
-    const ehParcelado = document.getElementById('lanc-eh-parcelado').checked;
     
     let valor, parcelas = 1;
     
@@ -748,7 +971,8 @@ async function handleAddLancamento(event) {
                     tipo,
                     status: 'pendente',
                     conta_fixa_id: null,
-                    parcela_atual: null
+                    parcela_atual: null,
+                    total_parcelas: null
                 }]);
             
             if (error) throw error;
@@ -1269,12 +1493,7 @@ function getContasFixasHTML() {
             
             <div class="card mb-4">
                 <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-center mb-3">
-                        <h5 class="card-title mb-0">Nova Conta Fixa</h5>
-                        <button class="btn btn-primary" onclick="gerarContasFixasMes()">
-                            <i class="bi bi-calendar-plus"></i> Gerar p/ Mês Atual
-                        </button>
-                    </div>
+                    <h5 class="card-title mb-3">Nova Conta Fixa</h5>
                     <form onsubmit="handleAddContaFixa(event)">
                         <div class="row">
                             <div class="col-md-4 mb-3">
@@ -1291,26 +1510,71 @@ function getContasFixasHTML() {
                                 <label class="form-label">Valor</label>
                                 <input type="number" step="0.01" class="form-control" id="conta-fixa-valor" required>
                             </div>
-                            <div class="col-md-1 mb-3">
-                                <label class="form-label">Dia</label>
+                            <div class="col-md-2 mb-3">
+                                <label class="form-label">Dia Vencimento</label>
                                 <input type="number" min="1" max="31" class="form-control" id="conta-fixa-dia" required>
                             </div>
-                            <div class="col-md-2 mb-3">
-                                <label class="form-label">Tipo</label>
-                                <select class="form-select" id="conta-fixa-tipo" required>
-                                    <option value="despesa">Despesa</option>
-                                    <option value="receita">Receita</option>
-                                </select>
+                            <div class="col-md-1 mb-3 d-flex align-items-end">
+                                <button type="submit" class="btn btn-success w-100">
+                                    <i class="bi bi-plus-circle"></i>
+                                </button>
                             </div>
                         </div>
-                        <button type="submit" class="btn btn-success">
-                            <i class="bi bi-plus-circle"></i> Adicionar Conta Fixa
-                        </button>
                     </form>
                 </div>
             </div>
             
-            <div id="contas-fixas-list"></div>
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title mb-3">Contas Cadastradas</h5>
+                    <div id="contas-fixas-list"></div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Modal Editar Conta Fixa -->
+        <div class="modal fade" id="modalEditarContaFixa" tabindex="-1">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Editar Conta Fixa</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <form id="formEditarContaFixa">
+                            <input type="hidden" id="edit-conta-fixa-id">
+                            <div class="mb-3">
+                                <label class="form-label">Descrição</label>
+                                <input type="text" class="form-control" id="edit-conta-fixa-descricao" required>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Categoria</label>
+                                <select class="form-select" id="edit-conta-fixa-categoria" required>
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Valor</label>
+                                <input type="number" step="0.01" class="form-control" id="edit-conta-fixa-valor" required>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Dia Vencimento</label>
+                                <input type="number" min="1" max="31" class="form-control" id="edit-conta-fixa-dia" required>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Tipo</label>
+                                <select class="form-select" id="edit-conta-fixa-tipo" required>
+                                    <option value="despesa">Despesa</option>
+                                    <option value="receita">Receita</option>
+                                </select>
+                            </div>
+                        </form>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="button" class="btn btn-primary" onclick="salvarEdicaoContaFixa()">Salvar</button>
+                    </div>
+                </div>
+            </div>
         </div>
     `;
 }
@@ -1383,7 +1647,7 @@ function displayContasFixas() {
                         <th>Dia</th>
                         <th>Tipo</th>
                         <th>Status</th>
-                        <th>Ações</th>
+                        <th style="width: 150px;">Ações</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -1403,13 +1667,18 @@ function displayContasFixas() {
                 <td>
                     <button class="btn btn-sm ${conta.ativa ? 'btn-success' : 'btn-secondary'}" 
                             onclick="toggleContaFixaStatus(${conta.id}, ${conta.ativa})">
-                        ${conta.ativa ? '<i class="bi bi-check-circle"></i> Ativa' : '<i class="bi bi-x-circle"></i> Inativa'}
+                        ${conta.ativa ? '<i class="bi bi-check-circle"></i>' : '<i class="bi bi-x-circle"></i>'}
                     </button>
                 </td>
                 <td>
-                    <button class="btn btn-sm btn-danger" onclick="deleteContaFixa(${conta.id})">
-                        <i class="bi bi-trash"></i>
-                    </button>
+                    <div class="btn-group btn-group-sm">
+                        <button class="btn btn-outline-primary" onclick="editarContaFixa(${conta.id})" title="Editar">
+                            <i class="bi bi-pencil"></i>
+                        </button>
+                        <button class="btn btn-outline-danger" onclick="deleteContaFixa(${conta.id})" title="Excluir">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </div>
                 </td>
             </tr>
         `;
@@ -1426,9 +1695,17 @@ async function handleAddContaFixa(event) {
     const categoria_id = parseInt(document.getElementById('conta-fixa-categoria').value);
     const valor = parseFloat(document.getElementById('conta-fixa-valor').value);
     const dia_vencimento = parseInt(document.getElementById('conta-fixa-dia').value);
-    const tipo = document.getElementById('conta-fixa-tipo').value;
     
     try {
+        // Buscar tipo da categoria
+        const { data: categoria, error: catError } = await supabase
+            .from('categorias')
+            .select('tipo')
+            .eq('id', categoria_id)
+            .single();
+        
+        if (catError) throw catError;
+        
         const { error } = await supabase
             .from('contas_fixas')
             .insert([{
@@ -1437,7 +1714,7 @@ async function handleAddContaFixa(event) {
                 categoria_id,
                 valor,
                 dia_vencimento,
-                tipo,
+                tipo: categoria.tipo,
                 ativa: true
             }]);
         
@@ -1450,6 +1727,66 @@ async function handleAddContaFixa(event) {
         showAlert('Erro ao adicionar conta fixa: ' + err.message, 'danger');
     }
 }
+
+async function editarContaFixa(id) {
+    const conta = contasFixas.find(c => c.id === id);
+    if (!conta) return;
+    
+    // Preencher modal
+    document.getElementById('edit-conta-fixa-id').value = conta.id;
+    document.getElementById('edit-conta-fixa-descricao').value = conta.descricao;
+    document.getElementById('edit-conta-fixa-valor').value = conta.valor;
+    document.getElementById('edit-conta-fixa-dia').value = conta.dia_vencimento;
+    document.getElementById('edit-conta-fixa-tipo').value = conta.tipo;
+    
+    // Carregar categorias no select do modal
+    const select = document.getElementById('edit-conta-fixa-categoria');
+    select.innerHTML = '<option value="">Selecione...</option>' +
+        categorias.map(c => `<option value="${c.id}">${c.nome} (${c.tipo.charAt(0).toUpperCase() + c.tipo.slice(1)})</option>`).join('');
+    select.value = conta.categoria_id;
+    
+    // Abrir modal
+    const modal = new bootstrap.Modal(document.getElementById('modalEditarContaFixa'));
+    modal.show();
+}
+
+async function salvarEdicaoContaFixa() {
+    try {
+        const id = parseInt(document.getElementById('edit-conta-fixa-id').value);
+        const descricao = document.getElementById('edit-conta-fixa-descricao').value;
+        const categoria_id = parseInt(document.getElementById('edit-conta-fixa-categoria').value);
+        const valor = parseFloat(document.getElementById('edit-conta-fixa-valor').value);
+        const dia_vencimento = parseInt(document.getElementById('edit-conta-fixa-dia').value);
+        const tipo = document.getElementById('edit-conta-fixa-tipo').value;
+        
+        const { error } = await supabase
+            .from('contas_fixas')
+            .update({
+                descricao,
+                categoria_id,
+                valor,
+                dia_vencimento,
+                tipo
+            })
+            .eq('id', id);
+        
+        if (error) throw error;
+        
+        showAlert('Conta fixa atualizada com sucesso!', 'success');
+        
+        // Fechar modal
+        const modal = bootstrap.Modal.getInstance(document.getElementById('modalEditarContaFixa'));
+        modal.hide();
+        
+        await loadContasFixas();
+    } catch (err) {
+        showAlert('Erro ao atualizar conta fixa: ' + err.message, 'danger');
+    }
+}
+
+// Expor funções para o window para uso no onclick
+window.editarContaFixa = editarContaFixa;
+window.salvarEdicaoContaFixa = salvarEdicaoContaFixa;
 
 async function toggleContaFixaStatus(id, ativaAtual) {
     try {
