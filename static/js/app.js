@@ -787,16 +787,16 @@ function irParaLancamento(lancamentoId) {
     sessionStorage.setItem('editarLancamentoId', lancamentoId);
     
     // Mudar para aba de lançamentos
-    showSection('lancamentos');
+    showPage('lancamentos');
     
     // Aguardar carregamento da página e abrir modal
     setTimeout(() => {
-        const lancamentoId = sessionStorage.getItem('editarLancamentoId');
-        if (lancamentoId) {
-            editarLancamento(lancamentoId);
+        const idLancamento = sessionStorage.getItem('editarLancamentoId');
+        if (idLancamento) {
+            editarLancamento(idLancamento);
             sessionStorage.removeItem('editarLancamentoId');
         }
-    }, 300);
+    }, 500);
 }
 
 // Função auxiliar para formatar data
