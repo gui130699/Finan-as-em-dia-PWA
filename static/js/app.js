@@ -799,26 +799,43 @@ async function irParaLancamentoAsync(lancamentoId) {
         // Mudar para aba de lançamentos e aguardar carregamento completo
         await showPage('lancamentos');
         
-        console.log('Página de lançamentos carregada, aguardando inicialização...');
+        console.log('Página de lançamentos carregada, aguardando elementos...');
         
-        // Aguardar inicialização completa
-        await new Promise(resolve => setTimeout(resolve, 500));
+        // Aguardar até que todos os elementos estejam disponíveis (máximo 5 segundos)
+        const maxTentativas = 25; // 25 x 200ms = 5 segundos
+        let tentativa = 0;
+        let elementosCarregados = false;
         
-        // Verificar se formulário está disponível
-        const formDescricao = document.getElementById('lanc-descricao');
-        
-        if (!formDescricao) {
-            console.error('Formulário não encontrado no DOM');
-            throw new Error('Formulário não está disponível');
+        while (tentativa < maxTentativas && !elementosCarregados) {
+            const elemData = document.getElementById('lanc-data');
+            const elemDescricao = document.getElementById('lanc-descricao');
+            const elemCategoria = document.getElementById('lanc-categoria');
+            const elemValor = document.getElementById('lanc-valor');
+            const elemTipo = document.getElementById('lanc-tipo');
+            const elemStatus = document.getElementById('lanc-status');
+            
+            if (elemData && elemDescricao && elemCategoria && elemValor && elemTipo && elemStatus) {
+                elementosCarregados = true;
+                console.log(`✅ Todos os elementos carregados após ${tentativa * 200}ms`);
+            } else {
+                console.log(`⏳ Tentativa ${tentativa + 1}/${maxTentativas} - aguardando elementos...`);
+                await new Promise(resolve => setTimeout(resolve, 200));
+                tentativa++;
+            }
         }
         
-        console.log('Formulário encontrado, editando lançamento...');
+        if (!elementosCarregados) {
+            console.error('❌ Timeout: elementos não carregaram após 5 segundos');
+            throw new Error('Timeout ao carregar formulário');
+        }
+        
+        console.log('✅ Formulário pronto, editando lançamento...');
         
         // Editar o lançamento
         await editarLancamento(lancamentoId);
         
     } catch (err) {
-        console.error('Erro ao navegar para lançamento:', err);
+        console.error('❌ Erro ao navegar para lançamento:', err);
         showAlert('Erro ao carregar lançamento: ' + err.message, 'danger');
     }
 }
