@@ -645,8 +645,7 @@ async function loadAvisosVencimento(lancamentos, saldoAtual, despesasPendentes, 
                             <div class="card-body p-2">
                                 <div class="list-group list-group-flush">
                                     ${vencidas.map(c => `
-                                        <a href="#" class="list-group-item list-group-item-action list-group-item-danger" 
-                                           onclick="irParaLancamento('${c.id}'); return false;">
+                                        <div class="list-group-item list-group-item-danger">
                                             <div class="d-flex justify-content-between align-items-center">
                                                 <div>
                                                     <strong>${c.descricao}</strong>
@@ -654,10 +653,9 @@ async function loadAvisosVencimento(lancamentos, saldoAtual, despesasPendentes, 
                                                 </div>
                                                 <div class="text-end">
                                                     <strong class="text-danger">R$ ${parseFloat(c.valor).toFixed(2)}</strong>
-                                                    <br><small><i class="bi bi-hand-index"></i> Clique para pagar</small>
                                                 </div>
                                             </div>
-                                        </a>
+                                        </div>
                                     `).join('')}
                                 </div>
                             </div>
@@ -677,8 +675,7 @@ async function loadAvisosVencimento(lancamentos, saldoAtual, despesasPendentes, 
                             <div class="card-body p-2">
                                 <div class="list-group list-group-flush">
                                     ${vencemHoje.map(c => `
-                                        <a href="#" class="list-group-item list-group-item-action list-group-item-warning" 
-                                           onclick="irParaLancamento('${c.id}'); return false;">
+                                        <div class="list-group-item list-group-item-warning">
                                             <div class="d-flex justify-content-between align-items-center">
                                                 <div>
                                                     <strong>${c.descricao}</strong>
@@ -686,10 +683,9 @@ async function loadAvisosVencimento(lancamentos, saldoAtual, despesasPendentes, 
                                                 </div>
                                                 <div class="text-end">
                                                     <strong>R$ ${parseFloat(c.valor).toFixed(2)}</strong>
-                                                    <br><small><i class="bi bi-hand-index"></i> Clique para pagar</small>
                                                 </div>
                                             </div>
-                                        </a>
+                                        </div>
                                     `).join('')}
                                 </div>
                             </div>
@@ -709,8 +705,7 @@ async function loadAvisosVencimento(lancamentos, saldoAtual, despesasPendentes, 
                             <div class="card-body p-2">
                                 <div class="list-group list-group-flush">
                                     ${vencem3Dias.map(c => `
-                                        <a href="#" class="list-group-item list-group-item-action" 
-                                           onclick="irParaLancamento('${c.id}'); return false;">
+                                        <div class="list-group-item">
                                             <div class="d-flex justify-content-between align-items-center">
                                                 <div>
                                                     <strong>${c.descricao}</strong>
@@ -718,7 +713,7 @@ async function loadAvisosVencimento(lancamentos, saldoAtual, despesasPendentes, 
                                                 </div>
                                                 <strong>R$ ${parseFloat(c.valor).toFixed(2)}</strong>
                                             </div>
-                                        </a>
+                                        </div>
                                     `).join('')}
                                 </div>
                             </div>
@@ -738,8 +733,7 @@ async function loadAvisosVencimento(lancamentos, saldoAtual, despesasPendentes, 
                             <div class="card-body p-2">
                                 <div class="list-group list-group-flush">
                                     ${vencem7Dias.map(c => `
-                                        <a href="#" class="list-group-item list-group-item-action" 
-                                           onclick="irParaLancamento('${c.id}'); return false;">
+                                        <div class="list-group-item">
                                             <div class="d-flex justify-content-between align-items-center">
                                                 <div>
                                                     <strong>${c.descricao}</strong>
@@ -747,7 +741,7 @@ async function loadAvisosVencimento(lancamentos, saldoAtual, despesasPendentes, 
                                                 </div>
                                                 <strong>R$ ${parseFloat(c.valor).toFixed(2)}</strong>
                                             </div>
-                                        </a>
+                                        </div>
                                     `).join('')}
                                 </div>
                             </div>
