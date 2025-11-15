@@ -2942,7 +2942,6 @@ window.loadLancamentos = loadLancamentos;
 window.handleAddCategoria = handleAddCategoria;
 window.editarCategoria = editarCategoria;
 window.deleteCategoria = deleteCategoria;
-window.handleAddContaFixa = handleAddContaFixa;
 window.toggleContaFixaStatus = toggleContaFixaStatus;
 window.deleteContaFixa = deleteContaFixa;
 window.gerarContasFixasMes = gerarContasFixasMes;
