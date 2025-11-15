@@ -472,11 +472,21 @@ async function loadDashboard() {
 
 async function loadUltimosLancamentos() {
     try {
-        console.log('Carregando últimos lançamentos...');
+        console.log('Carregando últimos lançamentos do mês...');
+        
+        // Calcular o último dia do mês corretamente
+        const [ano, mes] = mesAtual.split('-').map(Number);
+        const ultimoDia = new Date(ano, mes, 0).getDate();
+        
+        const mesInicio = `${mesAtual}-01`;
+        const mesFim = `${mesAtual}-${String(ultimoDia).padStart(2, '0')}`;
+        
         const { data, error } = await supabase
             .from('lancamentos')
             .select('*, categorias(nome)')
             .eq('usuario_id', currentUser.id)
+            .gte('data', mesInicio)
+            .lte('data', mesFim)
             .order('data', { ascending: false })
             .limit(10);
         
@@ -485,7 +495,7 @@ async function loadUltimosLancamentos() {
             throw error;
         }
         
-        console.log('Últimos lançamentos encontrados:', data?.length || 0);
+        console.log('Últimos lançamentos do mês encontrados:', data?.length || 0);
         
         if (data.length === 0) {
             document.getElementById('ultimos-lancamentos').innerHTML = `
