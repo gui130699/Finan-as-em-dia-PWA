@@ -335,15 +335,22 @@ function getHomeHTML() {
         ${getNavbar('home')}
         <div class="container mt-4">
             <h2><i class="bi bi-graph-up"></i> Dashboard - ${getNomeMes()}</h2>
-            <div id="dashboard-content" class="row mt-4">
+            
+            <!-- Cards principais (4 primeiros) -->
+            <div id="dashboard-cards" class="row mt-4">
                 <div class="col-12 text-center">
                     <div class="spinner-border text-success"></div>
                 </div>
             </div>
             
-            <div class="mt-5">
-                <h4>Últimos Lançamentos</h4>
-                <div id="ultimos-lancamentos"></div>
+            <!-- Avisos e Previsão -->
+            <div class="mt-4">
+                <div id="avisos-vencimento" class="row"></div>
+            </div>
+            
+            <!-- Análises (Comparativo e Categorias) -->
+            <div class="mt-4">
+                <div id="dashboard-analises" class="row"></div>
             </div>
         </div>
     `;
@@ -433,7 +440,8 @@ async function loadDashboard() {
             .sort((a, b) => b[1] - a[1])
             .slice(0, 5);
         
-        document.getElementById('dashboard-content').innerHTML = `
+        // Preencher cards principais (4 primeiros)
+        document.getElementById('dashboard-cards').innerHTML = `
             <div class="col-md-6 col-lg-3 mb-3">
                 <div class="card">
                     <div class="card-body">
@@ -470,7 +478,10 @@ async function loadDashboard() {
                     </div>
                 </div>
             </div>
-            
+        `;
+        
+        // Preencher análises (comparativo e categorias)
+        document.getElementById('dashboard-analises').innerHTML = `
             <!-- Comparativo Mensal -->
             <div class="col-md-6 mb-3">
                 <div class="card">
@@ -520,14 +531,14 @@ async function loadDashboard() {
             </div>
         `;
         
-        // Carregar avisos de vencimento e previsão de saldo
+        // Carregar avisos de vencimento e previsão de saldo (vai no meio)
         await loadAvisosVencimento(data, saldo, totalDespesasPendentes, totalReceitasPendentes);
     } catch (err) {
         console.error('Erro ao carregar dashboard:', err);
         console.error('Stack trace:', err.stack);
         console.error('Erro completo:', JSON.stringify(err, null, 2));
         
-        const dashboardEl = document.getElementById('dashboard-content');
+        const dashboardEl = document.getElementById('dashboard-cards');
         if (dashboardEl) {
             const errorMsg = err.message || err.msg || JSON.stringify(err);
             dashboardEl.innerHTML = `
@@ -754,14 +765,16 @@ async function loadAvisosVencimento(lancamentos, saldoAtual, despesasPendentes, 
             `;
         }
         
-        document.getElementById('ultimos-lancamentos').innerHTML = avisosHTML;
+        document.getElementById('avisos-vencimento').innerHTML = avisosHTML;
     } catch (err) {
         console.error('Erro ao carregar avisos de vencimento:', err);
-        const ultimosEl = document.getElementById('ultimos-lancamentos');
-        if (ultimosEl) {
-            ultimosEl.innerHTML = `
-                <div class="alert alert-warning">
-                    <i class="bi bi-exclamation-triangle"></i> Erro ao carregar avisos: ${err.message}
+        const avisosEl = document.getElementById('avisos-vencimento');
+        if (avisosEl) {
+            avisosEl.innerHTML = `
+                <div class="col-12">
+                    <div class="alert alert-warning">
+                        <i class="bi bi-exclamation-triangle"></i> Erro ao carregar avisos: ${err.message}
+                    </div>
                 </div>
             `;
         }
