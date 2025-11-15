@@ -801,12 +801,21 @@ async function gerarContasFixasMesAtual() {
 async function handleAddLancamento(event) {
     event.preventDefault();
     
+    console.log('handleAddLancamento chamado');
+    
     const ehParcelado = document.getElementById('lanc-eh-parcelado').checked;
     const ehContaFixa = document.getElementById('lanc-eh-conta-fixa').checked;
     
     const data = document.getElementById('lanc-data').value;
     const descricao = document.getElementById('lanc-descricao').value;
     const categoria_id = parseInt(document.getElementById('lanc-categoria').value);
+    
+    console.log('Dados do formulário:', { data, descricao, categoria_id, ehParcelado, ehContaFixa });
+    
+    if (!data || !descricao || !categoria_id) {
+        showAlert('Preencha todos os campos obrigatórios!', 'warning');
+        return;
+    }
     
     let valor, parcelas = 1;
     
@@ -904,9 +913,13 @@ async function handleAddLancamento(event) {
         await loadLancamentos();
         if (ehContaFixa) await loadContasFixas();
     } catch (err) {
+        console.error('Erro completo:', err);
         showAlert('Erro ao adicionar lançamento: ' + err.message, 'danger');
     }
 }
+
+// Expor função para o window
+window.handleAddLancamento = handleAddLancamento;
 
 async function criarLancamentoParcelado(dataInicial, descricao, categoria_id, valorTotal, tipo, parcelas, contaFixaId = null) {
     const contratoId = `${Date.now()}_${currentUser.id}`;
