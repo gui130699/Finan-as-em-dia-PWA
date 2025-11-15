@@ -781,25 +781,38 @@ async function loadAvisosVencimento(lancamentos, saldoAtual, despesasPendentes, 
     }
 }
 
-// Função auxiliar para navegar até lançamento específico
-async function irParaLancamento(lancamentoId) {
+// Função auxiliar para navegar até lançamento específico (wrapper síncrono)
+function irParaLancamento(lancamentoId) {
     console.log('Navegando para lançamento:', lancamentoId);
     
+    // Executar a versão assíncrona sem bloquear
+    irParaLancamentoAsync(lancamentoId).catch(err => {
+        console.error('Erro ao navegar:', err);
+    });
+}
+
+// Função assíncrona real
+async function irParaLancamentoAsync(lancamentoId) {
     try {
+        console.log('Iniciando navegação assíncrona para:', lancamentoId);
+        
         // Mudar para aba de lançamentos e aguardar carregamento completo
         await showPage('lancamentos');
         
-        // Aguardar um pouco mais para garantir que tudo foi inicializado
-        await new Promise(resolve => setTimeout(resolve, 300));
+        console.log('Página de lançamentos carregada, aguardando inicialização...');
+        
+        // Aguardar inicialização completa
+        await new Promise(resolve => setTimeout(resolve, 500));
         
         // Verificar se formulário está disponível
         const formDescricao = document.getElementById('lanc-descricao');
         
         if (!formDescricao) {
+            console.error('Formulário não encontrado no DOM');
             throw new Error('Formulário não está disponível');
         }
         
-        console.log('Formulário carregado, editando lançamento...');
+        console.log('Formulário encontrado, editando lançamento...');
         
         // Editar o lançamento
         await editarLancamento(lancamentoId);
