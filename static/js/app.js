@@ -782,41 +782,32 @@ async function loadAvisosVencimento(lancamentos, saldoAtual, despesasPendentes, 
 }
 
 // Função auxiliar para navegar até lançamento específico
-function irParaLancamento(lancamentoId) {
+async function irParaLancamento(lancamentoId) {
     console.log('Navegando para lançamento:', lancamentoId);
     
-    // Armazenar ID no sessionStorage para abrir modal de edição
-    sessionStorage.setItem('editarLancamentoId', lancamentoId);
-    
-    // Mudar para aba de lançamentos
-    showPage('lancamentos');
-    
-    // Aguardar carregamento da página e garantir que elementos existam
-    const tentarEditar = (tentativas = 0) => {
-        const idLancamento = sessionStorage.getItem('editarLancamentoId');
+    try {
+        // Mudar para aba de lançamentos e aguardar carregamento completo
+        await showPage('lancamentos');
         
-        if (!idLancamento) return;
+        // Aguardar um pouco mais para garantir que tudo foi inicializado
+        await new Promise(resolve => setTimeout(resolve, 300));
         
-        // Verificar se formulário já está carregado
+        // Verificar se formulário está disponível
         const formDescricao = document.getElementById('lanc-descricao');
         
-        if (formDescricao) {
-            console.log('Formulário carregado, editando lançamento...');
-            editarLancamento(idLancamento);
-            sessionStorage.removeItem('editarLancamentoId');
-        } else if (tentativas < 10) {
-            // Tentar novamente após 200ms, até 10 tentativas (2 segundos total)
-            console.log(`Aguardando carregamento... tentativa ${tentativas + 1}`);
-            setTimeout(() => tentarEditar(tentativas + 1), 200);
-        } else {
-            console.error('Timeout: formulário não carregou a tempo');
-            sessionStorage.removeItem('editarLancamentoId');
-            showAlert('Erro ao carregar formulário. Tente novamente.', 'warning');
+        if (!formDescricao) {
+            throw new Error('Formulário não está disponível');
         }
-    };
-    
-    // Iniciar tentativas após 300ms
-    setTimeout(() => tentarEditar(), 300);
+        
+        console.log('Formulário carregado, editando lançamento...');
+        
+        // Editar o lançamento
+        await editarLancamento(lancamentoId);
+        
+    } catch (err) {
+        console.error('Erro ao navegar para lançamento:', err);
+        showAlert('Erro ao carregar lançamento: ' + err.message, 'danger');
+    }
 }
 
 // Função auxiliar para formatar data
