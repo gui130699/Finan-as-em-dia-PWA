@@ -360,19 +360,40 @@ async function loadDashboard() {
         const mesInicio = `${mesAtual}-01`;
         const mesFim = `${mesAtual}-${String(ultimoDia).padStart(2, '0')}`;
         
-        console.log('Período:', mesInicio, 'até', mesFim);
+        // Calcular mês anterior para comparativo
+        const mesAnteriorDate = new Date(ano, mes - 2, 1); // mes-2 porque Date usa 0-11
+        const anoAnterior = mesAnteriorDate.getFullYear();
+        const mesAnteriorNum = mesAnteriorDate.getMonth() + 1;
+        const ultimoDiaAnterior = new Date(anoAnterior, mesAnteriorNum, 0).getDate();
+        const mesAnteriorInicio = `${anoAnterior}-${String(mesAnteriorNum).padStart(2, '0')}-01`;
+        const mesAnteriorFim = `${anoAnterior}-${String(mesAnteriorNum).padStart(2, '0')}-${String(ultimoDiaAnterior).padStart(2, '0')}`;
         
+        console.log('Período atual:', mesInicio, 'até', mesFim);
+        console.log('Período anterior:', mesAnteriorInicio, 'até', mesAnteriorFim);
+        
+        // Buscar lançamentos do mês atual
         const { data, error } = await supabase
             .from('lancamentos')
-            .select('id, usuario_id, data, descricao, categoria_id, valor, tipo, status, conta_fixa_id, parcela_atual')
+            .select('*, categorias(nome)')
             .eq('usuario_id', currentUser.id)
             .gte('data', mesInicio)
             .lte('data', mesFim);
         
         if (error) {
             console.error('Erro na query Supabase:', error);
-            console.error('Detalhes do erro:', JSON.stringify(error, null, 2));
             throw error;
+        }
+        
+        // Buscar lançamentos do mês anterior
+        const { data: dataAnterior, error: errorAnterior } = await supabase
+            .from('lancamentos')
+            .select('id, valor, tipo, status')
+            .eq('usuario_id', currentUser.id)
+            .gte('data', mesAnteriorInicio)
+            .lte('data', mesAnteriorFim);
+        
+        if (errorAnterior) {
+            console.error('Erro ao buscar mês anterior:', errorAnterior);
         }
         
         console.log('Lançamentos carregados:', data?.length || 0);
@@ -388,6 +409,29 @@ async function loadDashboard() {
         const totalDespesasPendentes = despesasPendentes.reduce((sum, l) => sum + parseFloat(l.valor), 0);
         const saldo = totalReceitas - totalDespesas;
         const saldoPrevisto = (totalReceitas + totalReceitasPendentes) - (totalDespesas + totalDespesasPendentes);
+        
+        // Calcular comparativo com mês anterior
+        const despesasAnterior = dataAnterior ? dataAnterior.filter(l => l.tipo === 'despesa' && l.status === 'pago') : [];
+        const receitasAnterior = dataAnterior ? dataAnterior.filter(l => l.tipo === 'receita' && l.status === 'pago') : [];
+        const totalDespesasAnterior = despesasAnterior.reduce((sum, l) => sum + parseFloat(l.valor), 0);
+        const totalReceitasAnterior = receitasAnterior.reduce((sum, l) => sum + parseFloat(l.valor), 0);
+        
+        const variacao = totalDespesasAnterior > 0 ? ((totalDespesas - totalDespesasAnterior) / totalDespesasAnterior * 100) : 0;
+        const variacaoReceitas = totalReceitasAnterior > 0 ? ((totalReceitas - totalReceitasAnterior) / totalReceitasAnterior * 100) : 0;
+        
+        // Agrupar gastos por categoria
+        const gastosPorCategoria = {};
+        despesas.forEach(l => {
+            const catNome = l.categorias?.nome || 'Sem Categoria';
+            if (!gastosPorCategoria[catNome]) {
+                gastosPorCategoria[catNome] = 0;
+            }
+            gastosPorCategoria[catNome] += parseFloat(l.valor);
+        });
+        
+        const topCategorias = Object.entries(gastosPorCategoria)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 5);
         
         document.getElementById('dashboard-content').innerHTML = `
             <div class="col-md-6 col-lg-3 mb-3">
@@ -422,32 +466,62 @@ async function loadDashboard() {
                     <div class="card-body">
                         <h6 class="card-title text-info"><i class="bi bi-calendar-check"></i> Saldo Previsto</h6>
                         <h4>R$ ${saldoPrevisto.toFixed(2)}</h4>
-                        <small class="text-muted">Com pendentes</small>
+                        <small class="text-muted">Final do mês</small>
                     </div>
                 </div>
             </div>
+            
+            <!-- Comparativo Mensal -->
             <div class="col-md-6 mb-3">
                 <div class="card">
                     <div class="card-body">
-                        <h6 class="card-title text-warning"><i class="bi bi-clock"></i> A Receber</h6>
-                        <h4>R$ ${totalReceitasPendentes.toFixed(2)}</h4>
-                        <small class="text-muted">${receitasPendentes.length} pendentes</small>
+                        <h6 class="card-title"><i class="bi bi-graph-up"></i> Comparativo de Gastos</h6>
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <span>Mês Atual</span>
+                            <strong>R$ ${totalDespesas.toFixed(2)}</strong>
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <span>Mês Anterior</span>
+                            <strong>R$ ${totalDespesasAnterior.toFixed(2)}</strong>
+                        </div>
+                        <hr>
+                        <div class="text-center">
+                            <h5 class="${variacao > 0 ? 'text-danger' : 'text-success'}">
+                                <i class="bi bi-${variacao > 0 ? 'arrow-up' : 'arrow-down'}-circle"></i>
+                                ${Math.abs(variacao).toFixed(1)}%
+                            </h5>
+                            <small class="text-muted">${variacao > 0 ? 'Aumento' : 'Redução'} nos gastos</small>
+                        </div>
                     </div>
                 </div>
             </div>
+            
+            <!-- Gastos por Categoria -->
             <div class="col-md-6 mb-3">
                 <div class="card">
                     <div class="card-body">
-                        <h6 class="card-title text-danger"><i class="bi bi-exclamation-circle"></i> A Pagar</h6>
-                        <h4>R$ ${totalDespesasPendentes.toFixed(2)}</h4>
-                        <small class="text-muted">${despesasPendentes.length} pendentes</small>
+                        <h6 class="card-title"><i class="bi bi-pie-chart"></i> Top 5 Categorias</h6>
+                        ${topCategorias.length > 0 ? topCategorias.map(([cat, val]) => {
+                            const percentual = totalDespesas > 0 ? (val / totalDespesas * 100) : 0;
+                            return `
+                                <div class="mb-2">
+                                    <div class="d-flex justify-content-between mb-1">
+                                        <small>${cat}</small>
+                                        <small><strong>R$ ${val.toFixed(2)}</strong> (${percentual.toFixed(1)}%)</small>
+                                    </div>
+                                    <div class="progress" style="height: 8px;">
+                                        <div class="progress-bar bg-primary" style="width: ${percentual}%"></div>
+                                    </div>
+                                </div>
+                            `;
+                        }).join('') : '<p class="text-muted mb-0">Nenhuma despesa registrada</p>'}
                     </div>
                 </div>
             </div>
         `;
         
-        // Carregar últimos lançamentos
-        await loadUltimosLancamentos();
+        // Carregar avisos de vencimento e previsão de saldo
+        await loadAvisosVencimento(data, saldo, totalDespesasPendentes, totalReceitasPendentes);
     } catch (err) {
         console.error('Erro ao carregar dashboard:', err);
         console.error('Stack trace:', err.stack);
@@ -470,71 +544,252 @@ async function loadDashboard() {
     }
 }
 
-async function loadUltimosLancamentos() {
+async function loadAvisosVencimento(lancamentos, saldoAtual, despesasPendentes, receitasPendentes) {
     try {
-        console.log('Carregando últimos lançamentos do mês...');
+        console.log('Carregando avisos de vencimento...');
         
-        // Calcular o último dia do mês corretamente
-        const [ano, mes] = mesAtual.split('-').map(Number);
-        const ultimoDia = new Date(ano, mes, 0).getDate();
+        const hoje = new Date();
+        hoje.setHours(0, 0, 0, 0);
         
-        const mesInicio = `${mesAtual}-01`;
-        const mesFim = `${mesAtual}-${String(ultimoDia).padStart(2, '0')}`;
+        const proximos3Dias = new Date(hoje);
+        proximos3Dias.setDate(proximos3Dias.getDate() + 3);
         
-        const { data, error } = await supabase
-            .from('lancamentos')
-            .select('*, categorias(nome)')
-            .eq('usuario_id', currentUser.id)
-            .gte('data', mesInicio)
-            .lte('data', mesFim)
-            .order('data', { ascending: false })
-            .limit(10);
+        const proximos7Dias = new Date(hoje);
+        proximos7Dias.setDate(proximos7Dias.getDate() + 7);
         
-        if (error) {
-            console.error('Erro ao buscar últimos lançamentos:', error);
-            throw error;
-        }
+        // Filtrar apenas contas pendentes
+        const contasPendentes = lancamentos.filter(l => l.status === 'pendente');
         
-        console.log('Últimos lançamentos do mês encontrados:', data?.length || 0);
+        // Classificar por prioridade
+        const vencidas = [];
+        const vencemHoje = [];
+        const vencem3Dias = [];
+        const vencem7Dias = [];
         
-        if (data.length === 0) {
-            document.getElementById('ultimos-lancamentos').innerHTML = `
-                <div class="alert alert-info">
-                    <i class="bi bi-info-circle"></i> Nenhum lançamento ainda.
-                </div>
-            `;
-            return;
-        }
-        
-        let html = '<div class="table-responsive"><table class="table table-sm table-hover"><thead><tr><th>Data</th><th>Descrição</th><th>Categoria</th><th>Valor</th><th>Status</th></tr></thead><tbody>';
-        
-        data.forEach(lanc => {
-            const valor = parseFloat(lanc.valor).toFixed(2);
-            const classeValor = lanc.tipo === 'receita' ? 'text-success' : 'text-danger';
-            html += `
-                <tr>
-                    <td>${formatDate(lanc.data)}</td>
-                    <td>${lanc.descricao}</td>
-                    <td><span class="badge bg-secondary">${lanc.categorias ? lanc.categorias.nome : '-'}</span></td>
-                    <td class="${classeValor}"><strong>R$ ${valor}</strong></td>
-                    <td><span class="badge ${lanc.status === 'pago' ? 'bg-success' : 'bg-warning'}">${lanc.status}</span></td>
-                </tr>
-            `;
+        contasPendentes.forEach(conta => {
+            const dataVenc = new Date(conta.data + 'T00:00:00');
+            
+            if (dataVenc < hoje) {
+                vencidas.push(conta);
+            } else if (dataVenc.getTime() === hoje.getTime()) {
+                vencemHoje.push(conta);
+            } else if (dataVenc <= proximos3Dias) {
+                vencem3Dias.push(conta);
+            } else if (dataVenc <= proximos7Dias) {
+                vencem7Dias.push(conta);
+            }
         });
         
-        html += '</tbody></table></div>';
-        document.getElementById('ultimos-lancamentos').innerHTML = html;
+        // Calcular previsão de saldo
+        const saldoProjetado = saldoAtual + receitasPendentes - despesasPendentes;
+        
+        let avisosHTML = `
+            <!-- Previsão de Saldo -->
+            <div class="col-12 mb-3">
+                <div class="card border-info">
+                    <div class="card-body">
+                        <h6 class="card-title text-info"><i class="bi bi-calculator"></i> Previsão de Saldo - Final do Mês</h6>
+                        <div class="row">
+                            <div class="col-md-4">
+                                <small class="text-muted">Saldo Atual</small>
+                                <h5>R$ ${saldoAtual.toFixed(2)}</h5>
+                            </div>
+                            <div class="col-md-4">
+                                <small class="text-muted">A Receber</small>
+                                <h5 class="text-success">+ R$ ${receitasPendentes.toFixed(2)}</h5>
+                            </div>
+                            <div class="col-md-4">
+                                <small class="text-muted">A Pagar</small>
+                                <h5 class="text-danger">- R$ ${despesasPendentes.toFixed(2)}</h5>
+                            </div>
+                        </div>
+                        <hr>
+                        <div class="text-center">
+                            <h4 class="${saldoProjetado >= 0 ? 'text-primary' : 'text-warning'}">
+                                <i class="bi bi-wallet2"></i> R$ ${saldoProjetado.toFixed(2)}
+                            </h4>
+                            <small class="text-muted">Saldo projetado</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // Avisos de Vencimento
+        if (vencidas.length > 0 || vencemHoje.length > 0 || vencem3Dias.length > 0 || vencem7Dias.length > 0) {
+            avisosHTML += `
+                <div class="col-12 mb-3">
+                    <h5><i class="bi bi-bell"></i> Avisos de Vencimento</h5>
+                </div>
+            `;
+            
+            // Vencidas
+            if (vencidas.length > 0) {
+                avisosHTML += `
+                    <div class="col-12 mb-3">
+                        <div class="card border-danger">
+                            <div class="card-header bg-danger text-white">
+                                <strong><i class="bi bi-exclamation-triangle"></i> VENCIDAS (${vencidas.length})</strong>
+                            </div>
+                            <div class="card-body p-2">
+                                <div class="list-group list-group-flush">
+                                    ${vencidas.map(c => `
+                                        <a href="#" class="list-group-item list-group-item-action list-group-item-danger" 
+                                           onclick="irParaLancamento('${c.id}'); return false;">
+                                            <div class="d-flex justify-content-between align-items-center">
+                                                <div>
+                                                    <strong>${c.descricao}</strong>
+                                                    <br><small>${c.categorias?.nome || 'Sem categoria'} | ${formatarData(c.data)}</small>
+                                                </div>
+                                                <div class="text-end">
+                                                    <strong class="text-danger">R$ ${parseFloat(c.valor).toFixed(2)}</strong>
+                                                    <br><small><i class="bi bi-hand-index"></i> Clique para pagar</small>
+                                                </div>
+                                            </div>
+                                        </a>
+                                    `).join('')}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            // Vencem Hoje
+            if (vencemHoje.length > 0) {
+                avisosHTML += `
+                    <div class="col-12 mb-3">
+                        <div class="card border-warning">
+                            <div class="card-header bg-warning text-dark">
+                                <strong><i class="bi bi-alarm"></i> VENCEM HOJE (${vencemHoje.length})</strong>
+                            </div>
+                            <div class="card-body p-2">
+                                <div class="list-group list-group-flush">
+                                    ${vencemHoje.map(c => `
+                                        <a href="#" class="list-group-item list-group-item-action list-group-item-warning" 
+                                           onclick="irParaLancamento('${c.id}'); return false;">
+                                            <div class="d-flex justify-content-between align-items-center">
+                                                <div>
+                                                    <strong>${c.descricao}</strong>
+                                                    <br><small>${c.categorias?.nome || 'Sem categoria'}</small>
+                                                </div>
+                                                <div class="text-end">
+                                                    <strong>R$ ${parseFloat(c.valor).toFixed(2)}</strong>
+                                                    <br><small><i class="bi bi-hand-index"></i> Clique para pagar</small>
+                                                </div>
+                                            </div>
+                                        </a>
+                                    `).join('')}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            // Próximos 3 dias
+            if (vencem3Dias.length > 0) {
+                avisosHTML += `
+                    <div class="col-md-6 mb-3">
+                        <div class="card border-warning">
+                            <div class="card-header" style="background-color: #fff3cd;">
+                                <strong><i class="bi bi-clock"></i> Próximos 3 Dias (${vencem3Dias.length})</strong>
+                            </div>
+                            <div class="card-body p-2">
+                                <div class="list-group list-group-flush">
+                                    ${vencem3Dias.map(c => `
+                                        <a href="#" class="list-group-item list-group-item-action" 
+                                           onclick="irParaLancamento('${c.id}'); return false;">
+                                            <div class="d-flex justify-content-between align-items-center">
+                                                <div>
+                                                    <strong>${c.descricao}</strong>
+                                                    <br><small>${formatarData(c.data)}</small>
+                                                </div>
+                                                <strong>R$ ${parseFloat(c.valor).toFixed(2)}</strong>
+                                            </div>
+                                        </a>
+                                    `).join('')}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            // Próximos 7 dias
+            if (vencem7Dias.length > 0) {
+                avisosHTML += `
+                    <div class="col-md-6 mb-3">
+                        <div class="card border-info">
+                            <div class="card-header bg-light">
+                                <strong><i class="bi bi-calendar-week"></i> Próximos 7 Dias (${vencem7Dias.length})</strong>
+                            </div>
+                            <div class="card-body p-2">
+                                <div class="list-group list-group-flush">
+                                    ${vencem7Dias.map(c => `
+                                        <a href="#" class="list-group-item list-group-item-action" 
+                                           onclick="irParaLancamento('${c.id}'); return false;">
+                                            <div class="d-flex justify-content-between align-items-center">
+                                                <div>
+                                                    <strong>${c.descricao}</strong>
+                                                    <br><small>${formatarData(c.data)}</small>
+                                                </div>
+                                                <strong>R$ ${parseFloat(c.valor).toFixed(2)}</strong>
+                                            </div>
+                                        </a>
+                                    `).join('')}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+        } else {
+            avisosHTML += `
+                <div class="col-12 mb-3">
+                    <div class="alert alert-success">
+                        <i class="bi bi-check-circle"></i> <strong>Tudo em dia!</strong> Nenhuma conta próxima do vencimento.
+                    </div>
+                </div>
+            `;
+        }
+        
+        document.getElementById('ultimos-lancamentos').innerHTML = avisosHTML;
     } catch (err) {
-        console.error('Erro ao carregar últimos lançamentos:', err);
+        console.error('Erro ao carregar avisos de vencimento:', err);
         const ultimosEl = document.getElementById('ultimos-lancamentos');
         if (ultimosEl) {
             ultimosEl.innerHTML = `
                 <div class="alert alert-warning">
-                    <i class="bi bi-exclamation-triangle"></i> Erro ao carregar últimos lançamentos: ${err.message}
+                    <i class="bi bi-exclamation-triangle"></i> Erro ao carregar avisos: ${err.message}
                 </div>
             `;
         }
     }
+}
+
+// Função auxiliar para navegar até lançamento específico
+function irParaLancamento(lancamentoId) {
+    // Armazenar ID no sessionStorage para abrir modal de edição
+    sessionStorage.setItem('editarLancamentoId', lancamentoId);
+    
+    // Mudar para aba de lançamentos
+    showSection('lancamentos');
+    
+    // Aguardar carregamento da página e abrir modal
+    setTimeout(() => {
+        const lancamentoId = sessionStorage.getItem('editarLancamentoId');
+        if (lancamentoId) {
+            editarLancamento(lancamentoId);
+            sessionStorage.removeItem('editarLancamentoId');
+        }
+    }, 300);
+}
+
+// Função auxiliar para formatar data
+function formatarData(dataStr) {
+    const [ano, mes, dia] = dataStr.split('-');
+    return `${dia}/${mes}/${ano}`;
 }
 
 // ============================================
