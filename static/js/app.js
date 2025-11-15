@@ -571,16 +571,6 @@ function getLancamentosHTML() {
                                 </div>
                             </div>
                         </div>
-                        <div id="campo-conta-fixa" style="display: none;">
-                            <div class="row">
-                                <div class="col-md-12 mb-3">
-                                    <label class="form-label">Selecione a Conta Fixa</label>
-                                    <select class="form-select" id="lanc-conta-fixa-select">
-                                        <option value="">Carregando...</option>
-                                    </select>
-                                </div>
-                            </div>
-                        </div>
                         <div id="campos-parcelamento" style="display: none;">
                             <div class="row">
                                 <div class="col-md-4 mb-3">
@@ -690,32 +680,6 @@ async function loadCategorias() {
     }
 }
 
-async function loadContasFixasSelect() {
-    try {
-        const { data, error } = await supabase
-            .from('contas_fixas')
-            .select('id, descricao, valor, categorias(nome)')
-            .eq('usuario_id', currentUser.id)
-            .eq('ativa', true)
-            .order('descricao');
-        
-        if (error) throw error;
-        
-        const select = document.getElementById('lanc-conta-fixa-select');
-        if (select) {
-            select.innerHTML = '<option value="">Selecione a conta fixa...</option>' +
-                (data || []).map(cf => {
-                    const valor = parseFloat(cf.valor).toFixed(2);
-                    const categoriaNome = cf.categorias ? cf.categorias.nome : 'Sem categoria';
-                    return `<option value="${cf.id}">${cf.descricao} - ${categoriaNome} - R$ ${valor}</option>`;
-                }).join('');
-        }
-    } catch (err) {
-        console.error('Erro ao carregar contas fixas:', err);
-        showAlert('Erro ao carregar contas fixas: ' + err.message, 'danger');
-    }
-}
-
 function inicializarFormularioLancamento() {
     const checkParcelado = document.getElementById('lanc-eh-parcelado');
     const camposParcelamento = document.getElementById('campos-parcelamento');
@@ -724,7 +688,6 @@ function inicializarFormularioLancamento() {
     const labelValor = document.getElementById('label-valor');
     
     const checkContaFixa = document.getElementById('lanc-eh-conta-fixa');
-    const campoContaFixa = document.getElementById('campo-conta-fixa');
     
     checkParcelado.addEventListener('change', function() {
         if (this.checked) {
@@ -732,7 +695,6 @@ function inicializarFormularioLancamento() {
             campoValorSimples.style.display = 'none';
             // Desmarcar conta fixa (mutuamente exclusivos)
             checkContaFixa.checked = false;
-            campoContaFixa.style.display = 'none';
         } else {
             camposParcelamento.style.display = 'none';
             campoValorSimples.style.display = 'block';
@@ -741,15 +703,10 @@ function inicializarFormularioLancamento() {
     
     checkContaFixa.addEventListener('change', function() {
         if (this.checked) {
-            campoContaFixa.style.display = 'block';
             // Desmarcar parcelado (mutuamente exclusivos)
             checkParcelado.checked = false;
             camposParcelamento.style.display = 'none';
             campoValorSimples.style.display = 'block';
-            // Carregar contas fixas no select
-            loadContasFixasSelect();
-        } else {
-            campoContaFixa.style.display = 'none';
         }
     });
     
@@ -847,81 +804,6 @@ async function handleAddLancamento(event) {
     const ehParcelado = document.getElementById('lanc-eh-parcelado').checked;
     const ehContaFixa = document.getElementById('lanc-eh-conta-fixa').checked;
     
-    // Se for conta fixa, buscar dados da conta selecionada
-    if (ehContaFixa) {
-        const contaFixaId = parseInt(document.getElementById('lanc-conta-fixa-select').value);
-        
-        if (!contaFixaId) {
-            showAlert('Selecione uma conta fixa.', 'warning');
-            return;
-        }
-        
-        try {
-            // Buscar dados da conta fixa
-            const { data: contaFixa, error: cfError } = await supabase
-                .from('contas_fixas')
-                .select('*')
-                .eq('id', contaFixaId)
-                .single();
-            
-            if (cfError) throw cfError;
-            
-            const data = document.getElementById('lanc-data').value;
-            
-            // Verificar se já existe lançamento desta conta fixa neste mês
-            const [ano, mes] = data.split('-');
-            const mesRef = `${ano}-${mes}`;
-            const ultimoDia = new Date(parseInt(ano), parseInt(mes), 0).getDate();
-            
-            const { data: existente, error: checkError } = await supabase
-                .from('lancamentos')
-                .select('id')
-                .eq('usuario_id', currentUser.id)
-                .eq('conta_fixa_id', contaFixaId)
-                .gte('data', `${mesRef}-01`)
-                .lte('data', `${mesRef}-${ultimoDia}`)
-                .limit(1);
-            
-            if (checkError) throw checkError;
-            
-            if (existente && existente.length > 0) {
-                showAlert('Já existe um lançamento desta conta fixa neste mês.', 'warning');
-                return;
-            }
-            
-            // Criar lançamento a partir da conta fixa
-            const { error: insertError } = await supabase
-                .from('lancamentos')
-                .insert([{
-                    usuario_id: currentUser.id,
-                    data,
-                    descricao: contaFixa.descricao,
-                    categoria_id: contaFixa.categoria_id,
-                    valor: contaFixa.valor,
-                    tipo: contaFixa.tipo,
-                    status: 'pendente',
-                    conta_fixa_id: contaFixaId,
-                    parcela_atual: null,
-                    total_parcelas: null
-                }]);
-            
-            if (insertError) throw insertError;
-            
-            showAlert('Lançamento da conta fixa adicionado com sucesso!', 'success');
-            event.target.reset();
-            document.getElementById('lanc-data').valueAsDate = new Date();
-            document.getElementById('lanc-eh-conta-fixa').checked = false;
-            document.getElementById('campo-conta-fixa').style.display = 'none';
-            await loadLancamentos();
-            return;
-            
-        } catch (err) {
-            showAlert('Erro ao adicionar lançamento da conta fixa: ' + err.message, 'danger');
-            return;
-        }
-    }
-    
-    // Fluxo normal para lançamentos manuais
     const data = document.getElementById('lanc-data').value;
     const descricao = document.getElementById('lanc-descricao').value;
     const categoria_id = parseInt(document.getElementById('lanc-categoria').value);
@@ -955,9 +837,34 @@ async function handleAddLancamento(event) {
         if (catError) throw catError;
         const tipo = categoria.tipo;
         
+        let contaFixaId = null;
+        
+        // Se é conta fixa, criar cadastro primeiro
+        if (ehContaFixa) {
+            const diaVencimento = parseInt(data.split('-')[2]);
+            
+            // Criar conta fixa
+            const { data: novaContaFixa, error: cfError } = await supabase
+                .from('contas_fixas')
+                .insert([{
+                    usuario_id: currentUser.id,
+                    descricao,
+                    categoria_id,
+                    valor,
+                    dia_vencimento: diaVencimento,
+                    tipo,
+                    ativa: true
+                }])
+                .select()
+                .single();
+            
+            if (cfError) throw cfError;
+            contaFixaId = novaContaFixa.id;
+        }
+        
         if (parcelas > 1) {
             // Criar lançamento parcelado (sempre pendente)
-            await criarLancamentoParcelado(data, descricao, categoria_id, valor, tipo, parcelas);
+            await criarLancamentoParcelado(data, descricao, categoria_id, valor, tipo, parcelas, contaFixaId);
         } else {
             // Criar lançamento simples (sempre pendente)
             const { error } = await supabase
@@ -970,7 +877,7 @@ async function handleAddLancamento(event) {
                     valor,
                     tipo,
                     status: 'pendente',
-                    conta_fixa_id: null,
+                    conta_fixa_id: contaFixaId,
                     parcela_atual: null,
                     total_parcelas: null
                 }]);
@@ -978,22 +885,30 @@ async function handleAddLancamento(event) {
             if (error) throw error;
         }
         
-        const msg = ehParcelado 
-            ? `${parcelas} parcelas de R$ ${valor.toFixed(2)} adicionadas!`
-            : 'Lançamento adicionado com sucesso!';
+        let msg;
+        if (ehContaFixa) {
+            msg = 'Conta fixa criada e lançamento adicionado!';
+        } else if (ehParcelado) {
+            msg = `${parcelas} parcelas de R$ ${valor.toFixed(2)} adicionadas!`;
+        } else {
+            msg = 'Lançamento adicionado com sucesso!';
+        }
+        
         showAlert(msg, 'success');
         event.target.reset();
         document.getElementById('lanc-data').valueAsDate = new Date();
         document.getElementById('lanc-eh-parcelado').checked = false;
+        document.getElementById('lanc-eh-conta-fixa').checked = false;
         document.getElementById('campos-parcelamento').style.display = 'none';
         document.getElementById('campo-valor-simples').style.display = 'block';
         await loadLancamentos();
+        if (ehContaFixa) await loadContasFixas();
     } catch (err) {
         showAlert('Erro ao adicionar lançamento: ' + err.message, 'danger');
     }
 }
 
-async function criarLancamentoParcelado(dataInicial, descricao, categoria_id, valorTotal, tipo, parcelas) {
+async function criarLancamentoParcelado(dataInicial, descricao, categoria_id, valorTotal, tipo, parcelas, contaFixaId = null) {
     const contratoId = `${Date.now()}_${currentUser.id}`;
     const valorParcela = valorTotal / parcelas;
     
@@ -1005,12 +920,12 @@ async function criarLancamentoParcelado(dataInicial, descricao, categoria_id, va
         lancamentos.push({
             usuario_id: currentUser.id,
             data: data.toISOString().split('T')[0],
-            descricao: `${descricao} (${i + 1}/${parcelas})`,
+            descricao,
             categoria_id,
             valor: valorParcela,
             tipo,
             status: 'pendente',
-            conta_fixa_id: null,
+            conta_fixa_id: contaFixaId,
             parcela_atual: i + 1,
             total_parcelas: parcelas
         });
@@ -1489,11 +1404,11 @@ function getContasFixasHTML() {
     return `
         ${getNavbar('contas_fixas')}
         <div class="container mt-4">
-            <div class="d-flex justify-content-between align-items-center mb-4">
-                <h2><i class="bi bi-arrow-repeat"></i> Contas Fixas</h2>
-                <button class="btn btn-success" onclick="abrirModalNovaContaFixa()">
-                    <i class="bi bi-plus-circle"></i> Nova Conta Fixa
-                </button>
+            <h2 class="mb-4"><i class="bi bi-arrow-repeat"></i> Contas Fixas</h2>
+            
+            <div class="alert alert-info">
+                <i class="bi bi-info-circle"></i> 
+                <strong>Como usar:</strong> Marque "Conta Fixa" ao criar um lançamento. As contas fixas aparecem aqui para você editar ou excluir.
             </div>
             
             <div class="card">
@@ -1652,26 +1567,6 @@ function displayContasFixas() {
     listEl.innerHTML = html;
 }
 
-function abrirModalNovaContaFixa() {
-    // Limpar formulário
-    document.getElementById('edit-conta-fixa-id').value = '';
-    document.getElementById('edit-conta-fixa-descricao').value = '';
-    document.getElementById('edit-conta-fixa-valor').value = '';
-    document.getElementById('edit-conta-fixa-dia').value = '';
-    
-    // Carregar categorias no select do modal
-    const select = document.getElementById('edit-conta-fixa-categoria');
-    select.innerHTML = '<option value="">Selecione...</option>' +
-        categorias.map(c => `<option value="${c.id}">${c.nome} (${c.tipo.charAt(0).toUpperCase() + c.tipo.slice(1)})</option>`).join('');
-    
-    // Alterar título do modal
-    document.getElementById('modalContaFixaTitulo').textContent = 'Nova Conta Fixa';
-    
-    // Abrir modal
-    const modal = new bootstrap.Modal(document.getElementById('modalEditarContaFixa'));
-    modal.show();
-}
-
 async function editarContaFixa(id) {
     const conta = contasFixas.find(c => c.id === id);
     if (!conta) return;
@@ -1762,7 +1657,6 @@ async function salvarContaFixa() {
 }
 
 // Expor funções para o window para uso no onclick
-window.abrirModalNovaContaFixa = abrirModalNovaContaFixa;
 window.editarContaFixa = editarContaFixa;
 window.salvarContaFixa = salvarContaFixa;
 
