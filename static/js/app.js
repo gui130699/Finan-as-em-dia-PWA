@@ -1489,55 +1489,26 @@ function getContasFixasHTML() {
     return `
         ${getNavbar('contas_fixas')}
         <div class="container mt-4">
-            <h2><i class="bi bi-arrow-repeat"></i> Contas Fixas</h2>
-            
-            <div class="card mb-4">
-                <div class="card-body">
-                    <h5 class="card-title mb-3">Nova Conta Fixa</h5>
-                    <form onsubmit="handleAddContaFixa(event)">
-                        <div class="row">
-                            <div class="col-md-4 mb-3">
-                                <label class="form-label">Descrição</label>
-                                <input type="text" class="form-control" id="conta-fixa-descricao" required>
-                            </div>
-                            <div class="col-md-3 mb-3">
-                                <label class="form-label">Categoria</label>
-                                <select class="form-select" id="conta-fixa-categoria" required>
-                                    <option value="">Carregando...</option>
-                                </select>
-                            </div>
-                            <div class="col-md-2 mb-3">
-                                <label class="form-label">Valor</label>
-                                <input type="number" step="0.01" class="form-control" id="conta-fixa-valor" required>
-                            </div>
-                            <div class="col-md-2 mb-3">
-                                <label class="form-label">Dia Vencimento</label>
-                                <input type="number" min="1" max="31" class="form-control" id="conta-fixa-dia" required>
-                            </div>
-                            <div class="col-md-1 mb-3 d-flex align-items-end">
-                                <button type="submit" class="btn btn-success w-100">
-                                    <i class="bi bi-plus-circle"></i>
-                                </button>
-                            </div>
-                        </div>
-                    </form>
-                </div>
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2><i class="bi bi-arrow-repeat"></i> Contas Fixas</h2>
+                <button class="btn btn-success" onclick="abrirModalNovaContaFixa()">
+                    <i class="bi bi-plus-circle"></i> Nova Conta Fixa
+                </button>
             </div>
             
             <div class="card">
                 <div class="card-body">
-                    <h5 class="card-title mb-3">Contas Cadastradas</h5>
                     <div id="contas-fixas-list"></div>
                 </div>
             </div>
         </div>
         
-        <!-- Modal Editar Conta Fixa -->
+        <!-- Modal Criar/Editar Conta Fixa -->
         <div class="modal fade" id="modalEditarContaFixa" tabindex="-1">
             <div class="modal-dialog">
                 <div class="modal-content">
                     <div class="modal-header">
-                        <h5 class="modal-title">Editar Conta Fixa</h5>
+                        <h5 class="modal-title" id="modalContaFixaTitulo">Conta Fixa</h5>
                         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                     </div>
                     <div class="modal-body">
@@ -1560,18 +1531,11 @@ function getContasFixasHTML() {
                                 <label class="form-label">Dia Vencimento</label>
                                 <input type="number" min="1" max="31" class="form-control" id="edit-conta-fixa-dia" required>
                             </div>
-                            <div class="mb-3">
-                                <label class="form-label">Tipo</label>
-                                <select class="form-select" id="edit-conta-fixa-tipo" required>
-                                    <option value="despesa">Despesa</option>
-                                    <option value="receita">Receita</option>
-                                </select>
-                            </div>
                         </form>
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                        <button type="button" class="btn btn-primary" onclick="salvarEdicaoContaFixa()">Salvar</button>
+                        <button type="button" class="btn btn-primary" onclick="salvarContaFixa()">Salvar</button>
                     </div>
                 </div>
             </div>
@@ -1688,44 +1652,24 @@ function displayContasFixas() {
     listEl.innerHTML = html;
 }
 
-async function handleAddContaFixa(event) {
-    event.preventDefault();
+function abrirModalNovaContaFixa() {
+    // Limpar formulário
+    document.getElementById('edit-conta-fixa-id').value = '';
+    document.getElementById('edit-conta-fixa-descricao').value = '';
+    document.getElementById('edit-conta-fixa-valor').value = '';
+    document.getElementById('edit-conta-fixa-dia').value = '';
     
-    const descricao = document.getElementById('conta-fixa-descricao').value;
-    const categoria_id = parseInt(document.getElementById('conta-fixa-categoria').value);
-    const valor = parseFloat(document.getElementById('conta-fixa-valor').value);
-    const dia_vencimento = parseInt(document.getElementById('conta-fixa-dia').value);
+    // Carregar categorias no select do modal
+    const select = document.getElementById('edit-conta-fixa-categoria');
+    select.innerHTML = '<option value="">Selecione...</option>' +
+        categorias.map(c => `<option value="${c.id}">${c.nome} (${c.tipo.charAt(0).toUpperCase() + c.tipo.slice(1)})</option>`).join('');
     
-    try {
-        // Buscar tipo da categoria
-        const { data: categoria, error: catError } = await supabase
-            .from('categorias')
-            .select('tipo')
-            .eq('id', categoria_id)
-            .single();
-        
-        if (catError) throw catError;
-        
-        const { error } = await supabase
-            .from('contas_fixas')
-            .insert([{
-                usuario_id: currentUser.id,
-                descricao,
-                categoria_id,
-                valor,
-                dia_vencimento,
-                tipo: categoria.tipo,
-                ativa: true
-            }]);
-        
-        if (error) throw error;
-        
-        showAlert('Conta fixa adicionada com sucesso!', 'success');
-        event.target.reset();
-        await loadContasFixas();
-    } catch (err) {
-        showAlert('Erro ao adicionar conta fixa: ' + err.message, 'danger');
-    }
+    // Alterar título do modal
+    document.getElementById('modalContaFixaTitulo').textContent = 'Nova Conta Fixa';
+    
+    // Abrir modal
+    const modal = new bootstrap.Modal(document.getElementById('modalEditarContaFixa'));
+    modal.show();
 }
 
 async function editarContaFixa(id) {
@@ -1737,7 +1681,6 @@ async function editarContaFixa(id) {
     document.getElementById('edit-conta-fixa-descricao').value = conta.descricao;
     document.getElementById('edit-conta-fixa-valor').value = conta.valor;
     document.getElementById('edit-conta-fixa-dia').value = conta.dia_vencimento;
-    document.getElementById('edit-conta-fixa-tipo').value = conta.tipo;
     
     // Carregar categorias no select do modal
     const select = document.getElementById('edit-conta-fixa-categoria');
@@ -1745,34 +1688,68 @@ async function editarContaFixa(id) {
         categorias.map(c => `<option value="${c.id}">${c.nome} (${c.tipo.charAt(0).toUpperCase() + c.tipo.slice(1)})</option>`).join('');
     select.value = conta.categoria_id;
     
+    // Alterar título do modal
+    document.getElementById('modalContaFixaTitulo').textContent = 'Editar Conta Fixa';
+    
     // Abrir modal
     const modal = new bootstrap.Modal(document.getElementById('modalEditarContaFixa'));
     modal.show();
 }
 
-async function salvarEdicaoContaFixa() {
+async function salvarContaFixa() {
     try {
-        const id = parseInt(document.getElementById('edit-conta-fixa-id').value);
+        const id = document.getElementById('edit-conta-fixa-id').value;
         const descricao = document.getElementById('edit-conta-fixa-descricao').value;
         const categoria_id = parseInt(document.getElementById('edit-conta-fixa-categoria').value);
         const valor = parseFloat(document.getElementById('edit-conta-fixa-valor').value);
         const dia_vencimento = parseInt(document.getElementById('edit-conta-fixa-dia').value);
-        const tipo = document.getElementById('edit-conta-fixa-tipo').value;
         
-        const { error } = await supabase
-            .from('contas_fixas')
-            .update({
-                descricao,
-                categoria_id,
-                valor,
-                dia_vencimento,
-                tipo
-            })
-            .eq('id', id);
+        if (!descricao || !categoria_id || !valor || !dia_vencimento) {
+            showAlert('Preencha todos os campos!', 'warning');
+            return;
+        }
         
-        if (error) throw error;
+        // Buscar tipo da categoria
+        const { data: categoria, error: catError } = await supabase
+            .from('categorias')
+            .select('tipo')
+            .eq('id', categoria_id)
+            .single();
         
-        showAlert('Conta fixa atualizada com sucesso!', 'success');
+        if (catError) throw catError;
+        
+        if (id) {
+            // Atualizar conta existente
+            const { error } = await supabase
+                .from('contas_fixas')
+                .update({
+                    descricao,
+                    categoria_id,
+                    valor,
+                    dia_vencimento,
+                    tipo: categoria.tipo
+                })
+                .eq('id', parseInt(id));
+            
+            if (error) throw error;
+            showAlert('Conta fixa atualizada com sucesso!', 'success');
+        } else {
+            // Criar nova conta
+            const { error } = await supabase
+                .from('contas_fixas')
+                .insert([{
+                    usuario_id: currentUser.id,
+                    descricao,
+                    categoria_id,
+                    valor,
+                    dia_vencimento,
+                    tipo: categoria.tipo,
+                    ativa: true
+                }]);
+            
+            if (error) throw error;
+            showAlert('Conta fixa criada com sucesso!', 'success');
+        }
         
         // Fechar modal
         const modal = bootstrap.Modal.getInstance(document.getElementById('modalEditarContaFixa'));
@@ -1780,13 +1757,14 @@ async function salvarEdicaoContaFixa() {
         
         await loadContasFixas();
     } catch (err) {
-        showAlert('Erro ao atualizar conta fixa: ' + err.message, 'danger');
+        showAlert('Erro ao salvar conta fixa: ' + err.message, 'danger');
     }
 }
 
 // Expor funções para o window para uso no onclick
+window.abrirModalNovaContaFixa = abrirModalNovaContaFixa;
 window.editarContaFixa = editarContaFixa;
-window.salvarEdicaoContaFixa = salvarEdicaoContaFixa;
+window.salvarContaFixa = salvarContaFixa;
 
 async function toggleContaFixaStatus(id, ativaAtual) {
     try {
