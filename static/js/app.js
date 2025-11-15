@@ -577,18 +577,23 @@ function getLancamentosHTML() {
                         </div>
                         <div id="campos-parcelamento" style="display: none;">
                             <div class="row">
-                                <div class="col-md-4 mb-3">
+                                <div class="col-md-3 mb-3">
                                     <label class="form-label">Número de Parcelas</label>
                                     <input type="number" class="form-control" id="lanc-parcelas" min="2" value="2">
                                 </div>
-                                <div class="col-md-4 mb-3">
+                                <div class="col-md-3 mb-3">
+                                    <label class="form-label">Data de Vencimento</label>
+                                    <input type="date" class="form-control" id="lanc-data-vencimento">
+                                    <small class="text-muted">1ª parcela vence nesta data</small>
+                                </div>
+                                <div class="col-md-3 mb-3">
                                     <label class="form-label">Tipo de Valor</label>
                                     <select class="form-select" id="lanc-tipo-valor">
                                         <option value="total">Valor Total (dividir)</option>
                                         <option value="parcela">Valor da Parcela</option>
                                     </select>
                                 </div>
-                                <div class="col-md-4 mb-3">
+                                <div class="col-md-3 mb-3">
                                     <label class="form-label" id="label-valor">Valor Total</label>
                                     <input type="number" step="0.01" class="form-control" id="lanc-valor">
                                 </div>
@@ -822,11 +827,18 @@ async function handleAddLancamento(event) {
     }
     
     let valor, parcelas = 1;
+    let dataVencimento = data; // Por padrão usa a data informada
     
     if (ehParcelado) {
         parcelas = parseInt(document.getElementById('lanc-parcelas').value);
+        dataVencimento = document.getElementById('lanc-data-vencimento').value;
         const tipoValor = document.getElementById('lanc-tipo-valor').value;
         const valorInput = parseFloat(document.getElementById('lanc-valor').value);
+        
+        if (!dataVencimento) {
+            showAlert('Preencha a data de vencimento para lançamentos parcelados!', 'warning');
+            return;
+        }
         
         if (!valorInput || isNaN(valorInput)) {
             showAlert('Preencha o valor!', 'warning');
@@ -887,7 +899,7 @@ async function handleAddLancamento(event) {
         
         if (parcelas > 1) {
             // Criar lançamento parcelado (sempre pendente)
-            await criarLancamentoParcelado(data, descricao, categoria_id, valor, tipo, parcelas, contaFixaId);
+            await criarLancamentoParcelado(dataVencimento, descricao, categoria_id, valor, tipo, parcelas, contaFixaId);
         } else {
             // Criar lançamento simples (sempre pendente)
             const { error } = await supabase
