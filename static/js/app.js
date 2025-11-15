@@ -175,10 +175,9 @@ function getAjudaHTML() {
                             <ol>
                                 <li>Preencha a <strong>Data</strong>, <strong>Descrição</strong> e <strong>Categoria</strong></li>
                                 <li>Insira o <strong>Valor</strong></li>
-                                <li>Selecione o <strong>Tipo</strong> (Receita ou Despesa)</li>
-                                <li>Defina o <strong>Status</strong> (Pago ou Pendente)</li>
                                 <li>Clique em <strong>Adicionar</strong></li>
                             </ol>
+                            <p><em>Nota: O tipo (receita/despesa) é determinado automaticamente pela categoria selecionada.</em></p>
                             
                             <h6>✅ Lançamento Parcelado:</h6>
                             <p>Marque o checkbox <strong>"Lançamento Parcelado"</strong> para dividir um valor em várias parcelas:</p>
