@@ -783,20 +783,40 @@ async function loadAvisosVencimento(lancamentos, saldoAtual, despesasPendentes, 
 
 // Função auxiliar para navegar até lançamento específico
 function irParaLancamento(lancamentoId) {
+    console.log('Navegando para lançamento:', lancamentoId);
+    
     // Armazenar ID no sessionStorage para abrir modal de edição
     sessionStorage.setItem('editarLancamentoId', lancamentoId);
     
     // Mudar para aba de lançamentos
     showPage('lancamentos');
     
-    // Aguardar carregamento da página e abrir modal
-    setTimeout(() => {
+    // Aguardar carregamento da página e garantir que elementos existam
+    const tentarEditar = (tentativas = 0) => {
         const idLancamento = sessionStorage.getItem('editarLancamentoId');
-        if (idLancamento) {
+        
+        if (!idLancamento) return;
+        
+        // Verificar se formulário já está carregado
+        const formDescricao = document.getElementById('lanc-descricao');
+        
+        if (formDescricao) {
+            console.log('Formulário carregado, editando lançamento...');
             editarLancamento(idLancamento);
             sessionStorage.removeItem('editarLancamentoId');
+        } else if (tentativas < 10) {
+            // Tentar novamente após 200ms, até 10 tentativas (2 segundos total)
+            console.log(`Aguardando carregamento... tentativa ${tentativas + 1}`);
+            setTimeout(() => tentarEditar(tentativas + 1), 200);
+        } else {
+            console.error('Timeout: formulário não carregou a tempo');
+            sessionStorage.removeItem('editarLancamentoId');
+            showAlert('Erro ao carregar formulário. Tente novamente.', 'warning');
         }
-    }, 500);
+    };
+    
+    // Iniciar tentativas após 300ms
+    setTimeout(() => tentarEditar(), 300);
 }
 
 // Função auxiliar para formatar data
@@ -1401,33 +1421,65 @@ async function toggleStatus(id, statusAtual) {
 
 async function editarLancamento(id) {
     try {
+        console.log('Editando lançamento:', id);
+        
+        // Verificar se elementos existem
+        const elemData = document.getElementById('lanc-data');
+        const elemDescricao = document.getElementById('lanc-descricao');
+        const elemCategoria = document.getElementById('lanc-categoria');
+        const elemValor = document.getElementById('lanc-valor');
+        const elemTipo = document.getElementById('lanc-tipo');
+        const elemStatus = document.getElementById('lanc-status');
+        
+        if (!elemData || !elemDescricao || !elemCategoria || !elemValor || !elemTipo || !elemStatus) {
+            console.error('Elementos do formulário não encontrados!');
+            throw new Error('Formulário não está disponível');
+        }
+        
+        // Buscar dados do lançamento
         const { data, error } = await supabase
             .from('lancamentos')
             .select('id, usuario_id, data, descricao, categoria_id, valor, tipo, status, conta_fixa_id, parcela_atual')
             .eq('id', id)
             .single();
         
-        if (error) throw error;
+        if (error) {
+            console.error('Erro ao buscar lançamento:', error);
+            throw error;
+        }
+        
+        console.log('Lançamento carregado:', data);
         
         // Preencher formulário com dados
-        document.getElementById('lanc-data').value = data.data;
-        document.getElementById('lanc-descricao').value = data.descricao.split(' (')[0]; // Remove info de parcela
-        document.getElementById('lanc-categoria').value = data.categoria_id;
-        document.getElementById('lanc-valor').value = data.valor;
-        document.getElementById('lanc-tipo').value = data.tipo;
-        document.getElementById('lanc-status').value = data.status;
-        document.getElementById('lanc-parcelas').value = 1;
+        elemData.value = data.data;
+        elemDescricao.value = data.descricao.split(' (')[0]; // Remove info de parcela
+        elemCategoria.value = data.categoria_id;
+        elemValor.value = data.valor;
+        elemTipo.value = data.tipo;
+        elemStatus.value = data.status;
         
         // Mudar botão para atualizar
         const form = document.querySelector('form');
+        if (!form) {
+            throw new Error('Formulário não encontrado');
+        }
+        
         form.onsubmit = async (e) => {
             e.preventDefault();
             await handleUpdateLancamento(id);
         };
         
         const btn = form.querySelector('button[type="submit"]');
+        if (!btn) {
+            throw new Error('Botão de submit não encontrado');
+        }
+        
         btn.innerHTML = '<i class="bi bi-check-circle"></i> Atualizar';
         btn.className = 'btn btn-primary';
+        
+        // Remover botão cancelar anterior se existir
+        const cancelBtnAntigo = form.querySelector('button.btn-secondary');
+        if (cancelBtnAntigo) cancelBtnAntigo.remove();
         
         // Adicionar botão cancelar
         const cancelBtn = document.createElement('button');
@@ -1444,9 +1496,12 @@ async function editarLancamento(id) {
         btn.after(cancelBtn);
         
         // Scroll para o formulário
-        form.scrollIntoView({ behavior: 'smooth' });
+        form.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        
+        showAlert('Lançamento carregado! Altere os dados e clique em Atualizar.', 'info');
     } catch (err) {
-        showAlert('Erro ao carregar lançamento', 'danger');
+        console.error('Erro ao carregar lançamento:', err);
+        showAlert('Erro ao carregar lançamento: ' + err.message, 'danger');
     }
 }
 
