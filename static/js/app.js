@@ -23,18 +23,20 @@ let mesAtual = new Date().toISOString().slice(0, 7);
 
 document.addEventListener('DOMContentLoaded', () => {
     checkAuth();
-    updateConnectionStatus();
     window.addEventListener('online', updateConnectionStatus);
     window.addEventListener('offline', updateConnectionStatus);
+    // Atualiza status a cada 3 segundos para detectar mudanças
+    setInterval(updateConnectionStatus, 3000);
 });
 
 function updateConnectionStatus() {
     const statusEl = document.getElementById('status-conexao');
     if (statusEl) {
-        statusEl.innerHTML = navigator.onLine ? 
+        const isOnline = navigator.onLine;
+        statusEl.innerHTML = isOnline ? 
             '<i class="bi bi-wifi"></i> Online' : 
             '<i class="bi bi-wifi-off"></i> Offline';
-        statusEl.className = navigator.onLine ? 'nav-link text-success' : 'nav-link text-warning';
+        statusEl.className = isOnline ? 'nav-link text-success' : 'nav-link text-warning';
     }
 }
 
