@@ -97,11 +97,402 @@ async function showPage(page) {
             app.innerHTML = getRelatoriosHTML();
             await loadRelatorios();
             break;
+        case 'ajuda':
+            app.innerHTML = getAjudaHTML();
+            break;
         default:
             app.innerHTML = getLoginHTML();
     }
     
     updateConnectionStatus();
+}
+
+// ============================================
+// AJUDA
+// ============================================
+
+function getAjudaHTML() {
+    return `
+        ${getNavbar('ajuda')}
+        <div class="container mt-4">
+            <h2><i class="bi bi-question-circle"></i> Central de Ajuda</h2>
+            <p class="lead">Guia completo de funcionalidades do Finanças em Dia</p>
+            
+            <div class="accordion" id="accordionAjuda">
+                
+                <!-- Dashboard -->
+                <div class="accordion-item">
+                    <h2 class="accordion-header">
+                        <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#dashboard">
+                            <i class="bi bi-house-door me-2"></i> Dashboard (Home)
+                        </button>
+                    </h2>
+                    <div id="dashboard" class="accordion-collapse collapse show" data-bs-parent="#accordionAjuda">
+                        <div class="accordion-body">
+                            <h5>📊 Visão Geral Financeira</h5>
+                            <p>A página inicial mostra um resumo completo das suas finanças do mês atual:</p>
+                            
+                            <h6>Cards Informativos:</h6>
+                            <ul>
+                                <li><strong>Receitas Recebidas:</strong> Total de receitas já pagas no mês</li>
+                                <li><strong>Despesas Pagas:</strong> Total de despesas já quitadas</li>
+                                <li><strong>Saldo Atual:</strong> Diferença entre receitas e despesas pagas</li>
+                                <li><strong>Saldo Previsto:</strong> Projeção incluindo valores pendentes</li>
+                            </ul>
+                            
+                            <h6>🔔 Avisos de Vencimento:</h6>
+                            <ul>
+                                <li><span class="badge bg-danger">VENCIDAS</span> Contas com data passada</li>
+                                <li><span class="badge bg-warning">VENCEM HOJE</span> Contas que vencem hoje</li>
+                                <li><span class="badge" style="background-color: #fff3cd; color: #000;">PRÓXIMOS 3 DIAS</span> Urgente</li>
+                                <li><span class="badge bg-secondary">PRÓXIMOS 7 DIAS</span> Atenção</li>
+                            </ul>
+                            
+                            <h6>📈 Análises:</h6>
+                            <ul>
+                                <li><strong>Comparativo Mensal:</strong> Compara gastos do mês atual vs anterior com % de variação</li>
+                                <li><strong>Top 5 Categorias:</strong> Maiores gastos por categoria com barras de progresso</li>
+                            </ul>
+                            
+                            <h6>💰 Previsão de Saldo:</h6>
+                            <p>Mostra o saldo projetado para o final do mês considerando todas as contas a receber e a pagar pendentes.</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Lançamentos -->
+                <div class="accordion-item">
+                    <h2 class="accordion-header">
+                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#lancamentos">
+                            <i class="bi bi-journal-text me-2"></i> Lançamentos
+                        </button>
+                    </h2>
+                    <div id="lancamentos" class="accordion-collapse collapse" data-bs-parent="#accordionAjuda">
+                        <div class="accordion-body">
+                            <h5>💸 Gestão de Receitas e Despesas</h5>
+                            
+                            <h6>Como Adicionar:</h6>
+                            <ol>
+                                <li>Preencha a <strong>Data</strong>, <strong>Descrição</strong> e <strong>Categoria</strong></li>
+                                <li>Insira o <strong>Valor</strong></li>
+                                <li>Selecione o <strong>Tipo</strong> (Receita ou Despesa)</li>
+                                <li>Defina o <strong>Status</strong> (Pago ou Pendente)</li>
+                                <li>Clique em <strong>Adicionar</strong></li>
+                            </ol>
+                            
+                            <h6>✅ Lançamento Parcelado:</h6>
+                            <p>Marque o checkbox <strong>"Lançamento Parcelado"</strong> para dividir um valor em várias parcelas:</p>
+                            <ul>
+                                <li><strong>Número de Parcelas:</strong> Quantidade de vezes que será dividido</li>
+                                <li><strong>Data de Vencimento:</strong> Primeiro vencimento (parcelas seguem mensalmente)</li>
+                                <li><strong>Tipo de Valor:</strong>
+                                    <ul>
+                                        <li><em>Valor Total:</em> Sistema divide automaticamente</li>
+                                        <li><em>Valor da Parcela:</em> Você informa o valor de cada parcela</li>
+                                    </ul>
+                                </li>
+                            </ul>
+                            
+                            <h6>🔄 Conta Fixa:</h6>
+                            <p>Marque <strong>"Conta Fixa"</strong> para contas recorrentes todo mês:</p>
+                            <ul>
+                                <li>Sistema cria automaticamente a conta fixa</li>
+                                <li>Aparece na aba "Contas Fixas" para gestão</li>
+                                <li>Pode gerar lançamentos automaticamente todo mês</li>
+                            </ul>
+                            
+                            <h6>Ações Disponíveis:</h6>
+                            <ul>
+                                <li><i class="bi bi-info-circle text-info"></i> <strong>Info:</strong> Ver detalhes da quitação (se houver)</li>
+                                <li><i class="bi bi-check-circle text-success"></i> <strong>Quitar:</strong> Marcar parcela como paga</li>
+                                <li><i class="bi bi-pencil text-primary"></i> <strong>Editar:</strong> Alterar dados do lançamento</li>
+                                <li><i class="bi bi-trash text-danger"></i> <strong>Excluir:</strong> Remover lançamento</li>
+                            </ul>
+                            
+                            <h6>🔍 Filtros:</h6>
+                            <p>Filtre por <strong>Tipo</strong>, <strong>Status</strong>, <strong>Categoria</strong> e <strong>Mês/Ano</strong></p>
+                            
+                            <h6>📅 Gerar Contas Fixas do Mês:</h6>
+                            <p>Botão para gerar automaticamente todas as contas fixas ativas do mês selecionado.</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Categorias -->
+                <div class="accordion-item">
+                    <h2 class="accordion-header">
+                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#categorias">
+                            <i class="bi bi-tags me-2"></i> Categorias
+                        </button>
+                    </h2>
+                    <div id="categorias" class="accordion-collapse collapse" data-bs-parent="#accordionAjuda">
+                        <div class="accordion-body">
+                            <h5>🏷️ Organização de Lançamentos</h5>
+                            
+                            <h6>O que são Categorias?</h6>
+                            <p>Categorias ajudam a organizar seus lançamentos em grupos como Alimentação, Transporte, Salário, etc.</p>
+                            
+                            <h6>Como Criar:</h6>
+                            <ol>
+                                <li>Digite o <strong>Nome</strong> da categoria</li>
+                                <li>Selecione o <strong>Tipo</strong>:
+                                    <ul>
+                                        <li><span class="badge bg-success">Receita</span> Para entradas de dinheiro</li>
+                                        <li><span class="badge bg-danger">Despesa</span> Para saídas de dinheiro</li>
+                                    </ul>
+                                </li>
+                                <li>Clique em <strong>Adicionar Categoria</strong></li>
+                            </ol>
+                            
+                            <h6>Gerenciamento:</h6>
+                            <ul>
+                                <li><i class="bi bi-pencil text-primary"></i> <strong>Editar:</strong> Alterar nome ou tipo</li>
+                                <li><i class="bi bi-trash text-danger"></i> <strong>Excluir:</strong> Remover categoria (apenas se não tiver lançamentos)</li>
+                            </ul>
+                            
+                            <h6>💡 Dica:</h6>
+                            <p>Crie categorias antes de adicionar lançamentos para facilitar a organização!</p>
+                            
+                            <h6>Exemplos de Categorias:</h6>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <strong>Receitas:</strong>
+                                    <ul>
+                                        <li>Salário</li>
+                                        <li>Freelance</li>
+                                        <li>Investimentos</li>
+                                        <li>Outros</li>
+                                    </ul>
+                                </div>
+                                <div class="col-md-6">
+                                    <strong>Despesas:</strong>
+                                    <ul>
+                                        <li>Alimentação</li>
+                                        <li>Transporte</li>
+                                        <li>Moradia</li>
+                                        <li>Educação</li>
+                                        <li>Lazer</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Contas Fixas -->
+                <div class="accordion-item">
+                    <h2 class="accordion-header">
+                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#contasFixas">
+                            <i class="bi bi-arrow-repeat me-2"></i> Contas Fixas
+                        </button>
+                    </h2>
+                    <div id="contasFixas" class="accordion-collapse collapse" data-bs-parent="#accordionAjuda">
+                        <div class="accordion-body">
+                            <h5>🔄 Contas Recorrentes</h5>
+                            
+                            <h6>O que são Contas Fixas?</h6>
+                            <p>Contas que se repetem todo mês, como aluguel, internet, academia, assinaturas, etc.</p>
+                            
+                            <h6>Como Criar:</h6>
+                            <p>Ao adicionar um lançamento, marque o checkbox <strong>"Conta Fixa"</strong>. O sistema cria automaticamente a conta fixa com:</p>
+                            <ul>
+                                <li>Descrição do lançamento</li>
+                                <li>Categoria</li>
+                                <li>Valor fixo</li>
+                                <li>Dia de vencimento (extraído da data)</li>
+                            </ul>
+                            
+                            <h6>Gerenciamento:</h6>
+                            <ul>
+                                <li><i class="bi bi-toggle-on text-success"></i> / <i class="bi bi-toggle-off text-secondary"></i> <strong>Ativar/Desativar:</strong> Controlar se a conta está ativa</li>
+                                <li><i class="bi bi-pencil text-primary"></i> <strong>Editar:</strong> Alterar descrição, categoria, valor ou dia de vencimento</li>
+                                <li><i class="bi bi-trash text-danger"></i> <strong>Excluir:</strong> Remover conta fixa permanentemente</li>
+                            </ul>
+                            
+                            <h6>🎯 Geração Automática:</h6>
+                            <p>Na aba Lançamentos, use o botão <strong>"Gerar Contas Fixas do Mês"</strong> para criar automaticamente todos os lançamentos das contas fixas ativas do mês selecionado.</p>
+                            
+                            <h6>💡 Vantagens:</h6>
+                            <ul>
+                                <li>Evita esquecer contas mensais</li>
+                                <li>Geração automática economiza tempo</li>
+                                <li>Fácil gestão de assinaturas e serviços</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Contas Parceladas -->
+                <div class="accordion-item">
+                    <h2 class="accordion-header">
+                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#contasParceladas">
+                            <i class="bi bi-credit-card me-2"></i> Contas Parceladas
+                        </button>
+                    </h2>
+                    <div id="contasParceladas" class="accordion-collapse collapse" data-bs-parent="#accordionAjuda">
+                        <div class="accordion-body">
+                            <h5>💳 Pagamentos em Parcelas</h5>
+                            
+                            <h6>O que são?</h6>
+                            <p>Compras ou dívidas divididas em várias parcelas ao longo dos meses (ex: compra no cartão em 12x).</p>
+                            
+                            <h6>Visualização:</h6>
+                            <p>Esta aba mostra um resumo agrupado de todas as suas compras parceladas:</p>
+                            <ul>
+                                <li><strong>Descrição:</strong> Nome da compra</li>
+                                <li><strong>Parcelas:</strong> Pagas / Total (ex: 3/12)</li>
+                                <li><strong>Valor Parcela:</strong> Valor de cada prestação</li>
+                                <li><strong>Total:</strong> Valor total da compra</li>
+                                <li><strong>Próximo Vencimento:</strong> Data da próxima parcela</li>
+                                <li><strong>Progresso:</strong> Barra visual das parcelas pagas</li>
+                            </ul>
+                            
+                            <h6>🎯 Quitação:</h6>
+                            <p>Clique em <i class="bi bi-check-circle text-success"></i> <strong>Quitar</strong> para:</p>
+                            <ul>
+                                <li><strong>Quitação Integral:</strong> Pagar todas as parcelas restantes de uma vez (com opção de desconto)</li>
+                                <li><strong>Quitação Parcial:</strong> Escolher quais parcelas pagar</li>
+                            </ul>
+                            
+                            <h6>ℹ️ Informações:</h6>
+                            <ul>
+                                <li>Parcelas pagas ficam marcadas com <span class="badge bg-success">Pago</span></li>
+                                <li>Parcelas pendentes aparecem como <span class="badge bg-warning">Pendente</span></li>
+                                <li>Sistema calcula automaticamente o progresso</li>
+                            </ul>
+                            
+                            <h6>💡 Dica:</h6>
+                            <p>Acompanhe o andamento de cada parcelamento e planeje quitações antecipadas quando tiver saldo disponível!</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Relatórios -->
+                <div class="accordion-item">
+                    <h2 class="accordion-header">
+                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#relatorios">
+                            <i class="bi bi-file-earmark-bar-graph me-2"></i> Relatórios
+                        </button>
+                    </h2>
+                    <div id="relatorios" class="accordion-collapse collapse" data-bs-parent="#accordionAjuda">
+                        <div class="accordion-body">
+                            <h5>📊 Análise Financeira Detalhada</h5>
+                            
+                            <h6>Como Gerar:</h6>
+                            <ol>
+                                <li>Selecione a <strong>Data Início</strong></li>
+                                <li>Selecione a <strong>Data Fim</strong></li>
+                                <li>Clique em <strong>Gerar Relatório</strong></li>
+                            </ol>
+                            
+                            <h6>Informações Exibidas:</h6>
+                            <ul>
+                                <li><strong>Resumo Geral:</strong>
+                                    <ul>
+                                        <li>Total de Receitas</li>
+                                        <li>Total de Despesas</li>
+                                        <li>Saldo do Período</li>
+                                        <li>Total de Lançamentos</li>
+                                    </ul>
+                                </li>
+                                <li><strong>Gastos por Categoria:</strong> Gráfico de pizza mostrando distribuição</li>
+                                <li><strong>Lançamentos por Categoria:</strong> Quantidade de lançamentos em cada</li>
+                                <li><strong>Tabela Detalhada:</strong> Todos os lançamentos do período com:
+                                    <ul>
+                                        <li>Data</li>
+                                        <li>Descrição</li>
+                                        <li>Categoria</li>
+                                        <li>Tipo</li>
+                                        <li>Valor</li>
+                                        <li>Status</li>
+                                    </ul>
+                                </li>
+                            </ul>
+                            
+                            <h6>💡 Uso Prático:</h6>
+                            <ul>
+                                <li>Compare diferentes períodos</li>
+                                <li>Identifique categorias com maior gasto</li>
+                                <li>Analise seu comportamento financeiro</li>
+                                <li>Planeje redução de gastos</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Dicas Gerais -->
+                <div class="accordion-item">
+                    <h2 class="accordion-header">
+                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#dicas">
+                            <i class="bi bi-lightbulb me-2"></i> Dicas e Melhores Práticas
+                        </button>
+                    </h2>
+                    <div id="dicas" class="accordion-collapse collapse" data-bs-parent="#accordionAjuda">
+                        <div class="accordion-body">
+                            <h5>💡 Aproveite ao Máximo o App</h5>
+                            
+                            <h6>🎯 Organização:</h6>
+                            <ul>
+                                <li>Crie categorias específicas para melhor controle</li>
+                                <li>Use nomes descritivos nos lançamentos</li>
+                                <li>Registre todos os gastos, mesmo os pequenos</li>
+                                <li>Configure contas fixas para não esquecer pagamentos</li>
+                            </ul>
+                            
+                            <h6>💰 Planejamento:</h6>
+                            <ul>
+                                <li>Consulte a Previsão de Saldo para planejar gastos futuros</li>
+                                <li>Use o Comparativo Mensal para identificar tendências</li>
+                                <li>Acompanhe o Top 5 Categorias para controlar maiores gastos</li>
+                                <li>Gere relatórios mensais para análise completa</li>
+                            </ul>
+                            
+                            <h6>⚡ Produtividade:</h6>
+                            <ul>
+                                <li>Marque "Conta Fixa" ao adicionar despesas recorrentes</li>
+                                <li>Use "Gerar Contas Fixas do Mês" todo início de mês</li>
+                                <li>Para compras parceladas, sempre use o checkbox "Lançamento Parcelado"</li>
+                                <li>Configure a Data de Vencimento correta para avisos precisos</li>
+                            </ul>
+                            
+                            <h6>🔔 Avisos:</h6>
+                            <ul>
+                                <li>Verifique diariamente a Home para avisos de vencimento</li>
+                                <li>Priorize contas VENCIDAS (vermelho)</li>
+                                <li>Preste atenção nas que VENCEM HOJE (laranja)</li>
+                                <li>Planeje-se para as dos próximos 3 e 7 dias</li>
+                            </ul>
+                            
+                            <h6>📱 PWA (Progressive Web App):</h6>
+                            <ul>
+                                <li>Instale no celular para acesso offline</li>
+                                <li>Funciona como app nativo</li>
+                                <li>Dados sincronizam automaticamente quando online</li>
+                                <li>Ícone na tela inicial para acesso rápido</li>
+                            </ul>
+                            
+                            <h6>🔒 Segurança:</h6>
+                            <ul>
+                                <li>Use uma senha forte</li>
+                                <li>Faça logout em dispositivos compartilhados</li>
+                                <li>Seus dados são armazenados com segurança no Supabase</li>
+                                <li>Cada usuário tem acesso apenas aos próprios dados</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                
+            </div>
+            
+            <div class="card mt-4 border-info">
+                <div class="card-body">
+                    <h5 class="card-title"><i class="bi bi-info-circle text-info"></i> Precisa de mais ajuda?</h5>
+                    <p class="card-text">Este aplicativo foi desenvolvido para facilitar o controle financeiro pessoal de forma simples e eficiente.</p>
+                    <p class="mb-0"><strong>Versão:</strong> 2.0 | <strong>Última Atualização:</strong> Novembro 2025</p>
+                </div>
+            </div>
+        </div>
+    `;
 }
 
 // ============================================
@@ -300,6 +691,11 @@ function getNavbar(activePage) {
                         <li class="nav-item">
                             <a class="nav-link ${activePage === 'relatorios' ? 'active' : ''}" href="#" onclick="showPage('relatorios')">
                                 <i class="bi bi-file-earmark-bar-graph"></i> Relatórios
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link ${activePage === 'ajuda' ? 'active' : ''}" href="#" onclick="showPage('ajuda')">
+                                <i class="bi bi-question-circle"></i> Ajuda
                             </a>
                         </li>
                     </ul>
