@@ -257,3 +257,13 @@ html {
         background-color: white;
     }
 }
+
+/* ==================== COLLAPSE ANIMATION ==================== */
+
+[data-bs-toggle="collapse"] .bi-chevron-right {
+    transition: transform 0.3s ease;
+}
+
+[data-bs-toggle="collapse"]:not(.collapsed) .bi-chevron-right {
+    transform: rotate(90deg);
+}

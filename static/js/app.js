@@ -2822,6 +2822,7 @@ function displayContratosParcelados(contratos) {
     console.log('Montando HTML para', Object.keys(contratos).length, 'contratos');
     let html = '';
     
+    let contratoIndex = 0;
     for (const [contratoId, parcelas] of Object.entries(contratos)) {
         const primeira = parcelas[0];
         const valorTotal = parcelas.reduce((sum, p) => sum + parseFloat(p.valor), 0);
@@ -2830,15 +2831,25 @@ function displayContratosParcelados(contratos) {
         const valorPago = parcelas.filter(p => p.status === 'pago').reduce((sum, p) => sum + parseFloat(p.valor), 0);
         const valorPendente = parcelas.filter(p => p.status === 'pendente').reduce((sum, p) => sum + parseFloat(p.valor), 0);
         
+        const collapseId = `collapse-contrato-${contratoIndex}`;
+        contratoIndex++;
+        
         html += `
             <div class="card mb-4">
-                <div class="card-header bg-primary text-white">
+                <div class="card-header bg-primary text-white" style="cursor: pointer;" data-bs-toggle="collapse" data-bs-target="#${collapseId}">
                     <div class="d-flex justify-content-between align-items-center">
-                        <h5 class="mb-0">${primeira.descricao.split(' (')[0]}</h5>
-                        <span class="badge bg-light text-dark">${pagas}/${parcelas.length} pagas</span>
+                        <h5 class="mb-0">
+                            <i class="bi bi-chevron-right me-2"></i>
+                            ${primeira.descricao.split(' (')[0]}
+                        </h5>
+                        <div>
+                            <span class="badge bg-light text-dark me-2">${pagas}/${parcelas.length} pagas</span>
+                            <span class="badge bg-warning">R$ ${valorPendente.toFixed(2)} pendente</span>
+                        </div>
                     </div>
                 </div>
-                <div class="card-body">
+                <div id="${collapseId}" class="collapse">
+                    <div class="card-body">
                     <div class="row mb-3">
                         <div class="col-md-3">
                             <strong>Valor Total:</strong><br>
@@ -2902,6 +2913,7 @@ function displayContratosParcelados(contratos) {
         html += `
                             </tbody>
                         </table>
+                    </div>
                     </div>
                 </div>
             </div>
