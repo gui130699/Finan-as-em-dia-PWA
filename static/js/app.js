@@ -1344,6 +1344,25 @@ function getLancamentosHTML() {
                 <div class="card-body">
                     <h5 class="card-title">Adicionar Lançamento</h5>
                     <form onsubmit="handleAddLancamento(event)">
+                        <div class="row mb-3">
+                            <div class="col-md-12">
+                                <label class="form-label"><strong>Tipo de Lançamento</strong></label>
+                                <div class="d-flex gap-4">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="radio" name="lanc-tipo" id="lanc-tipo-despesa" value="despesa" checked onchange="filtrarCategoriasPorTipo()">
+                                        <label class="form-check-label" for="lanc-tipo-despesa">
+                                            <i class="bi bi-arrow-down-circle text-danger"></i> Despesa
+                                        </label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="radio" name="lanc-tipo" id="lanc-tipo-receita" value="receita" onchange="filtrarCategoriasPorTipo()">
+                                        <label class="form-check-label" for="lanc-tipo-receita">
+                                            <i class="bi bi-arrow-up-circle text-success"></i> Receita
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                         <div class="row">
                             <div class="col-md-3 mb-3">
                                 <label class="form-label">Data</label>
@@ -1469,9 +1488,12 @@ async function loadCategorias() {
         
         categorias = data || [];
         
-        // Atualizar todos os selects de categoria
-        const selects = ['lanc-categoria', 'filtro-categoria', 'conta-fixa-categoria'];
-        selects.forEach(selectId => {
+        // Atualizar select de lançamento com filtro por tipo
+        filtrarCategoriasPorTipo();
+        
+        // Atualizar outros selects sem filtro
+        const selectsSemFiltro = ['filtro-categoria', 'conta-fixa-categoria'];
+        selectsSemFiltro.forEach(selectId => {
             const select = document.getElementById(selectId);
             if (select) {
                 const currentValue = select.value;
@@ -1489,6 +1511,27 @@ async function loadCategorias() {
         }
     } catch (err) {
         console.error('Erro ao carregar categorias:', err);
+    }
+}
+
+function filtrarCategoriasPorTipo() {
+    const tipoDespesa = document.getElementById('lanc-tipo-despesa');
+    const tipoReceita = document.getElementById('lanc-tipo-receita');
+    const selectCategoria = document.getElementById('lanc-categoria');
+    
+    if (!tipoDespesa || !tipoReceita || !selectCategoria) return;
+    
+    const tipoSelecionado = tipoDespesa.checked ? 'despesa' : 'receita';
+    const categoriasFiltradas = categorias.filter(c => c.tipo === tipoSelecionado);
+    
+    const currentValue = selectCategoria.value;
+    selectCategoria.innerHTML = '<option value="">Selecione...</option>' +
+        categoriasFiltradas.map(c => `<option value="${c.id}">${c.nome}</option>`).join('');
+    
+    // Manter valor selecionado se ainda estiver disponível
+    const opcaoExiste = categoriasFiltradas.some(c => c.id == currentValue);
+    if (currentValue && opcaoExiste) {
+        selectCategoria.value = currentValue;
     }
 }
 
@@ -1719,15 +1762,9 @@ async function handleAddLancamento(event) {
     }
     
     try {
-        // Buscar o tipo da categoria selecionada
-        const { data: categoria, error: catError } = await supabase
-            .from('categorias')
-            .select('tipo')
-            .eq('id', categoria_id)
-            .single();
-        
-        if (catError) throw catError;
-        const tipo = categoria.tipo;
+        // Pegar o tipo selecionado no radio button
+        const tipoDespesa = document.getElementById('lanc-tipo-despesa');
+        const tipo = tipoDespesa.checked ? 'despesa' : 'receita';
         
         let contaFixaId = null;
         
