@@ -3313,7 +3313,7 @@ function getRelatoriosHTML() {
                             <label class="form-label">Data Fim</label>
                             <input type="date" class="form-control" id="rel-data-fim">
                         </div>
-                        <div class="col-md-3 mb-3">
+                        <div class="col-md-2 mb-3">
                             <label class="form-label">Tipo</label>
                             <select class="form-select" id="rel-tipo">
                                 <option value="">Todos</option>
@@ -3321,10 +3321,16 @@ function getRelatoriosHTML() {
                                 <option value="despesa">Despesas</option>
                             </select>
                         </div>
-                        <div class="col-md-3 mb-3">
+                        <div class="col-md-2 mb-3">
+                            <label class="form-label">Categoria</label>
+                            <select class="form-select" id="rel-categoria">
+                                <option value="">Todas</option>
+                            </select>
+                        </div>
+                        <div class="col-md-2 mb-3">
                             <label class="form-label">&nbsp;</label>
                             <button class="btn btn-primary w-100" onclick="gerarRelatorio()">
-                                <i class="bi bi-search"></i> Gerar Relatório
+                                <i class="bi bi-search"></i> Gerar
                             </button>
                         </div>
                     </div>
@@ -3345,6 +3351,13 @@ async function loadRelatorios() {
     document.getElementById('rel-data-inicio').valueAsDate = inicio;
     document.getElementById('rel-data-fim').valueAsDate = fim;
     
+    // Carregar categorias no filtro
+    const selectCategoria = document.getElementById('rel-categoria');
+    if (selectCategoria && categorias.length > 0) {
+        selectCategoria.innerHTML = '<option value="">Todas</option>' +
+            categorias.map(c => `<option value="${c.id}">${c.nome}</option>`).join('');
+    }
+    
     await gerarRelatorio();
 }
 
@@ -3352,6 +3365,7 @@ async function gerarRelatorio() {
     const dataInicio = document.getElementById('rel-data-inicio').value;
     const dataFim = document.getElementById('rel-data-fim').value;
     const tipo = document.getElementById('rel-tipo').value;
+    const categoriaId = document.getElementById('rel-categoria').value;
     
     if (!dataInicio || !dataFim) {
         showAlert('Selecione o período!', 'warning');
@@ -3370,6 +3384,7 @@ async function gerarRelatorio() {
             .eq('status', 'pago');
         
         if (tipo) query = query.eq('tipo', tipo);
+        if (categoriaId) query = query.eq('categoria_id', parseInt(categoriaId));
         
         const { data, error } = await query;
         
@@ -3418,6 +3433,12 @@ function displayRelatorio(lancamentos, dataInicio, dataFim) {
     });
     
     let html = `
+        <div class="d-flex justify-content-end mb-3">
+            <button class="btn btn-danger" onclick="exportarRelatorioPDF()">
+                <i class="bi bi-file-pdf"></i> Exportar PDF
+            </button>
+        </div>
+        
         <div class="card mb-4">
             <div class="card-header bg-primary text-white">
                 <h5 class="mb-0">Resumo do Período: ${formatDate(dataInicio)} a ${formatDate(dataFim)}</h5>
@@ -3526,6 +3547,145 @@ function displayRelatorio(lancamentos, dataInicio, dataFim) {
     `;
     
     resultEl.innerHTML = html;
+}
+
+async function exportarRelatorioPDF() {
+    const dataInicio = document.getElementById('rel-data-inicio').value;
+    const dataFim = document.getElementById('rel-data-fim').value;
+    const tipo = document.getElementById('rel-tipo').value;
+    const categoriaId = document.getElementById('rel-categoria').value;
+    
+    if (!dataInicio || !dataFim) {
+        showAlert('Gere o relatório primeiro!', 'warning');
+        return;
+    }
+    
+    try {
+        // Buscar dados novamente para garantir consistência
+        let query = supabase
+            .from('lancamentos')
+            .select('*, categorias(nome)')
+            .eq('usuario_id', currentUser.id)
+            .gte('data', dataInicio)
+            .lte('data', dataFim)
+            .eq('status', 'pago');
+        
+        if (tipo) query = query.eq('tipo', tipo);
+        if (categoriaId) query = query.eq('categoria_id', parseInt(categoriaId));
+        
+        const { data, error } = await query;
+        
+        if (error) throw error;
+        
+        if (data.length === 0) {
+            showAlert('Nenhum dado para exportar!', 'info');
+            return;
+        }
+        
+        // Calcular totais
+        const receitas = data.filter(l => l.tipo === 'receita');
+        const despesas = data.filter(l => l.tipo === 'despesa');
+        const totalReceitas = receitas.reduce((sum, l) => sum + parseFloat(l.valor), 0);
+        const totalDespesas = despesas.reduce((sum, l) => sum + parseFloat(l.valor), 0);
+        const saldo = totalReceitas - totalDespesas;
+        
+        // Preparar dados para o PDF
+        const dadosPDF = {
+            periodo: `${formatDate(dataInicio)} a ${formatDate(dataFim)}`,
+            totalReceitas: totalReceitas.toFixed(2),
+            totalDespesas: totalDespesas.toFixed(2),
+            saldo: saldo.toFixed(2),
+            lancamentos: data.map(l => ({
+                data: formatDate(l.data),
+                descricao: l.descricao,
+                categoria: l.categorias?.nome || 'Sem categoria',
+                tipo: l.tipo,
+                valor: parseFloat(l.valor).toFixed(2)
+            }))
+        };
+        
+        // Criar PDF usando jsPDF
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF();
+        
+        // Título
+        doc.setFontSize(18);
+        doc.text('Relatório Financeiro', 105, 15, { align: 'center' });
+        
+        doc.setFontSize(12);
+        doc.text(`Período: ${dadosPDF.periodo}`, 105, 25, { align: 'center' });
+        
+        // Resumo
+        let y = 35;
+        doc.setFontSize(14);
+        doc.text('Resumo', 14, y);
+        
+        y += 8;
+        doc.setFontSize(11);
+        doc.text(`Total Receitas: R$ ${dadosPDF.totalReceitas}`, 14, y);
+        
+        y += 6;
+        doc.text(`Total Despesas: R$ ${dadosPDF.totalDespesas}`, 14, y);
+        
+        y += 6;
+        doc.setFont(undefined, 'bold');
+        doc.text(`Saldo: R$ ${dadosPDF.saldo}`, 14, y);
+        doc.setFont(undefined, 'normal');
+        
+        // Tabela de lançamentos
+        y += 12;
+        doc.setFontSize(14);
+        doc.text('Lançamentos', 14, y);
+        
+        y += 8;
+        doc.setFontSize(9);
+        
+        // Cabeçalho da tabela
+        doc.setFont(undefined, 'bold');
+        doc.text('Data', 14, y);
+        doc.text('Descrição', 35, y);
+        doc.text('Categoria', 100, y);
+        doc.text('Tipo', 150, y);
+        doc.text('Valor', 175, y);
+        doc.setFont(undefined, 'normal');
+        
+        y += 5;
+        
+        // Lançamentos
+        dadosPDF.lancamentos.forEach((lanc, index) => {
+            if (y > 270) {
+                doc.addPage();
+                y = 20;
+                
+                // Repetir cabeçalho
+                doc.setFont(undefined, 'bold');
+                doc.text('Data', 14, y);
+                doc.text('Descrição', 35, y);
+                doc.text('Categoria', 100, y);
+                doc.text('Tipo', 150, y);
+                doc.text('Valor', 175, y);
+                doc.setFont(undefined, 'normal');
+                y += 5;
+            }
+            
+            doc.text(lanc.data, 14, y);
+            doc.text(lanc.descricao.substring(0, 30), 35, y);
+            doc.text(lanc.categoria.substring(0, 20), 100, y);
+            doc.text(lanc.tipo === 'receita' ? 'Receita' : 'Despesa', 150, y);
+            doc.text(`R$ ${lanc.valor}`, 175, y);
+            
+            y += 5;
+        });
+        
+        // Salvar PDF
+        const nomeArquivo = `relatorio_${dataInicio}_${dataFim}.pdf`;
+        doc.save(nomeArquivo);
+        
+        showAlert('PDF gerado com sucesso!', 'success');
+    } catch (err) {
+        console.error('Erro ao exportar PDF:', err);
+        showAlert('Erro ao exportar PDF: ' + err.message, 'danger');
+    }
 }
 
 // ============================================
