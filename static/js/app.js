@@ -909,9 +909,11 @@ async function loadDashboard() {
         const variacao = totalDespesasAnterior > 0 ? ((totalDespesas - totalDespesasAnterior) / totalDespesasAnterior * 100) : 0;
         const variacaoReceitas = totalReceitasAnterior > 0 ? ((totalReceitas - totalReceitasAnterior) / totalReceitasAnterior * 100) : 0;
         
-        // Agrupar gastos por categoria
+        // Agrupar gastos por categoria (incluindo pendentes e pagas)
         const gastosPorCategoria = {};
-        despesas.forEach(l => {
+        // Incluir todas as despesas do mês (pagas e pendentes)
+        const todasDespesasMes = data.filter(l => l.tipo === 'despesa');
+        todasDespesasMes.forEach(l => {
             const catNome = l.categorias?.nome || 'Sem Categoria';
             if (!gastosPorCategoria[catNome]) {
                 gastosPorCategoria[catNome] = 0;
