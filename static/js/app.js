@@ -3359,6 +3359,8 @@ async function gerarRelatorio() {
     }
     
     try {
+        // Buscar todos os lançamentos pagos com data dentro do período
+        // (independente de quando foram criados/lançados no sistema)
         let query = supabase
             .from('lancamentos')
             .select('*, categorias(nome)')
