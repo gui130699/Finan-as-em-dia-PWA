@@ -3351,11 +3351,23 @@ async function loadRelatorios() {
     document.getElementById('rel-data-inicio').valueAsDate = inicio;
     document.getElementById('rel-data-fim').valueAsDate = fim;
     
-    // Carregar categorias no filtro
-    const selectCategoria = document.getElementById('rel-categoria');
-    if (selectCategoria && categorias.length > 0) {
-        selectCategoria.innerHTML = '<option value="">Todas</option>' +
-            categorias.map(c => `<option value="${c.id}">${c.nome}</option>`).join('');
+    // Buscar e carregar categorias no filtro
+    try {
+        const { data, error } = await supabase
+            .from('categorias')
+            .select('*')
+            .eq('usuario_id', currentUser.id)
+            .order('nome');
+        
+        if (error) throw error;
+        
+        const selectCategoria = document.getElementById('rel-categoria');
+        if (selectCategoria && data && data.length > 0) {
+            selectCategoria.innerHTML = '<option value="">Todas</option>' +
+                data.map(c => `<option value="${c.id}">${c.nome}</option>`).join('');
+        }
+    } catch (err) {
+        console.error('Erro ao carregar categorias:', err);
     }
     
     await gerarRelatorio();
