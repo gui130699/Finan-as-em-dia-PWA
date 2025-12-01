@@ -1,0 +1,286 @@
+{% extends "base.html" %}
+
+{% block title %}Lançamentos - Finanças em Dia{% endblock %}
+
+{% block content %}
+<div class="page-header mb-4">
+    <h2><i class="bi bi-journal-text"></i> Lançamentos</h2>
+</div>
+
+<!-- Formulário de Novo Lançamento -->
+<div class="card mb-4">
+    <div class="card-header bg-primary text-white">
+        <h5 class="mb-0"><i class="bi bi-plus-circle"></i> Novo Lançamento</h5>
+    </div>
+    <div class="card-body">
+        <form method="POST" action="{{ url_for('lancamentos') }}" id="formLancamento">
+            <div class="row g-3">
+                <div class="col-md-2">
+                    <label for="data" class="form-label">Data</label>
+                    <input type="date" class="form-control" id="data" name="data" required>
+                </div>
+                
+                <div class="col-md-3">
+                    <label for="categoria_id" class="form-label">Categoria</label>
+                    <select class="form-select" id="categoria_id" name="categoria_id" required>
+                        <option value="">Selecione...</option>
+                        {% for cat in categorias %}
+                        <option value="{{ cat.id }}" data-tipo="{{ cat.tipo }}">
+                            {{ cat.nome }} ({{ cat.tipo }})
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                
+                <div class="col-md-2">
+                    <label for="valor" class="form-label">Valor</label>
+                    <input type="number" class="form-control" id="valor" name="valor" 
+                           step="0.01" min="0" required>
+                </div>
+                
+                <div class="col-md-3">
+                    <label for="descricao" class="form-label">Descrição</label>
+                    <input type="text" class="form-control" id="descricao" name="descricao" required>
+                </div>
+                
+                <div class="col-md-2">
+                    <label for="parcelas" class="form-label">Parcelas</label>
+                    <input type="number" class="form-control" id="parcelas" name="parcelas" 
+                           min="1" value="1">
+                </div>
+                
+                <div class="col-md-4">
+                    <label class="form-label d-block">&nbsp;</label>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="conta_fixa" 
+                               name="conta_fixa" onchange="toggleContaFixa()">
+                        <label class="form-check-label" for="conta_fixa">
+                            Conta Fixa
+                        </label>
+                    </div>
+                </div>
+                
+                <div class="col-md-2" id="divDiaVencimento" style="display: none;">
+                    <label for="dia_vencimento" class="form-label">Dia Vencimento</label>
+                    <input type="number" class="form-control" id="dia_vencimento" 
+                           name="dia_vencimento" min="1" max="31">
+                </div>
+                
+                <div class="col-md-4">
+                    <label for="observacao" class="form-label">Observação</label>
+                    <input type="text" class="form-control" id="observacao" name="observacao">
+                </div>
+                
+                <div class="col-md-12">
+                    <button type="submit" class="btn btn-success">
+                        <i class="bi bi-check-circle"></i> Salvar Lançamento
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Ferramentas e Filtros -->
+<div class="card mb-4">
+    <div class="card-body">
+        <div class="row g-3">
+            <!-- Seletor de Mês/Ano -->
+            <div class="col-md-3">
+                <form method="GET" action="{{ url_for('lancamentos') }}" class="d-inline">
+                    <label class="form-label">Mês/Ano</label>
+                    <div class="input-group">
+                        <select class="form-select" name="mes">
+                            {% for m in range(1, 13) %}
+                            <option value="{{ m }}" {% if m == mes %}selected{% endif %}>
+                                {{ "%02d"|format(m) }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                        <input type="number" class="form-control" name="ano" value="{{ ano }}" 
+                               style="max-width: 100px;">
+                        <button type="submit" class="btn btn-primary">OK</button>
+                    </div>
+                </form>
+            </div>
+            
+            <!-- Gerar Contas Fixas -->
+            <div class="col-md-2">
+                <form method="POST" action="{{ url_for('gerar_contas_fixas') }}">
+                    <label class="form-label">Contas Fixas</label>
+                    <input type="hidden" name="mes" value="{{ mes }}">
+                    <input type="hidden" name="ano" value="{{ ano }}">
+                    <button type="submit" class="btn btn-warning w-100">
+                        <i class="bi bi-arrow-repeat"></i> Gerar
+                    </button>
+                </form>
+            </div>
+            
+            <!-- Trazer Saldo Anterior -->
+            <div class="col-md-2">
+                <form method="POST" action="{{ url_for('trazer_saldo_anterior') }}" 
+                      onsubmit="return confirm('Deseja trazer o saldo do mês anterior para este mês?');">
+                    <label class="form-label">Saldo Anterior</label>
+                    <input type="hidden" name="mes" value="{{ mes }}">
+                    <input type="hidden" name="ano" value="{{ ano }}">
+                    <button type="submit" class="btn btn-info w-100">
+                        <i class="bi bi-wallet2"></i> Trazer
+                    </button>
+                </form>
+            </div>
+            
+            <!-- Trazer Despesas Pendentes -->
+            <div class="col-md-2">
+                <form method="POST" action="{{ url_for('trazer_despesas_pendentes') }}"
+                      onsubmit="return confirm('Deseja trazer as despesas pendentes do mês anterior?');">
+                    <label class="form-label">Pend. Anterior</label>
+                    <input type="hidden" name="mes" value="{{ mes }}">
+                    <input type="hidden" name="ano" value="{{ ano }}">
+                    <button type="submit" class="btn btn-danger w-100">
+                        <i class="bi bi-exclamation-circle"></i> Trazer
+                    </button>
+                </form>
+            </div>
+            
+            <!-- Filtros -->
+            <div class="col-md-6">
+                <form method="GET" action="{{ url_for('lancamentos') }}">
+                    <label class="form-label">Filtros</label>
+                    <input type="hidden" name="mes" value="{{ mes }}">
+                    <input type="hidden" name="ano" value="{{ ano }}">
+                    <div class="input-group">
+                        <select class="form-select" name="categoria_id">
+                            <option value="">Todas categorias</option>
+                            {% for cat in categorias %}
+                            <option value="{{ cat.id }}" 
+                                    {% if categoria_filtro == cat.id %}selected{% endif %}>
+                                {{ cat.nome }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                        <select class="form-select" name="status">
+                            <option value="Todos">Todos status</option>
+                            <option value="pendente" {% if status_filtro == 'pendente' %}selected{% endif %}>
+                                Pendente
+                            </option>
+                            <option value="pago" {% if status_filtro == 'pago' %}selected{% endif %}>
+                                Pago
+                            </option>
+                            <option value="a_receber" {% if status_filtro == 'a_receber' %}selected{% endif %}>
+                                A receber
+                            </option>
+                            <option value="recebido" {% if status_filtro == 'recebido' %}selected{% endif %}>
+                                Recebido
+                            </option>
+                        </select>
+                        <input type="text" class="form-control" name="busca" 
+                               placeholder="Buscar descrição..." value="{{ busca }}">
+                        <button type="submit" class="btn btn-secondary">
+                            <i class="bi bi-funnel"></i> Filtrar
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Tabela de Lançamentos -->
+<div class="card">
+    <div class="card-header">
+        <h5 class="mb-0">Lançamentos do Mês</h5>
+    </div>
+    <div class="card-body">
+        {% if lancamentos %}
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th style="width: 50px;">ID</th>
+                        <th>Data</th>
+                        <th>Descrição</th>
+                        <th>Categoria</th>
+                        <th>Tipo</th>
+                        <th>Status</th>
+                        <th>Parcela</th>
+                        <th class="text-end">Valor</th>
+                        <th class="text-center" style="width: 150px;">Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for lanc in lancamentos %}
+                    <tr class="{{ lanc.classe_css }}">
+                        <td>{{ lanc.id }}</td>
+                        <td>{{ lanc.data_formatada }}</td>
+                        <td>{{ lanc.descricao }}</td>
+                        <td>{{ lanc.categoria_nome }}</td>
+                        <td>
+                            {% if lanc.tipo == 'Receita' %}
+                                <span class="badge bg-success">{{ lanc.tipo }}</span>
+                            {% else %}
+                                <span class="badge bg-danger">{{ lanc.tipo }}</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ lanc.status }}</td>
+                        <td>{{ lanc.parcela_texto }}</td>
+                        <td class="text-end"><strong>{{ lanc.valor_formatado }}</strong></td>
+                        <td class="text-center">
+                            <!-- Alterar Status -->
+                            <form method="POST" action="{{ url_for('alternar_status', lanc_id=lanc.id) }}" 
+                                  class="d-inline" onsubmit="return confirm('Alterar status?');">
+                                <button type="submit" class="btn btn-sm btn-info" 
+                                        title="Alterar Status">
+                                    <i class="bi bi-arrow-repeat"></i>
+                                </button>
+                            </form>
+                            
+                            <!-- Editar -->
+                            <a href="{{ url_for('editar_lancamento', lanc_id=lanc.id) }}" 
+                               class="btn btn-sm btn-warning" title="Editar">
+                                <i class="bi bi-pencil"></i>
+                            </a>
+                            
+                            <!-- Excluir -->
+                            <form method="POST" action="{{ url_for('excluir_lancamento', lanc_id=lanc.id) }}" 
+                                  class="d-inline" onsubmit="return confirm('Confirma exclusão?');">
+                                <button type="submit" class="btn btn-sm btn-danger" 
+                                        title="Excluir">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="alert alert-info mb-0">
+            <i class="bi bi-info-circle"></i> Nenhum lançamento encontrado com os filtros aplicados.
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Definir data de hoje como padrão
+    document.getElementById('data').valueAsDate = new Date();
+    
+    // Toggle do campo de dia de vencimento
+    function toggleContaFixa() {
+        const checkbox = document.getElementById('conta_fixa');
+        const divDia = document.getElementById('divDiaVencimento');
+        const inputDia = document.getElementById('dia_vencimento');
+        
+        if (checkbox.checked) {
+            divDia.style.display = 'block';
+            inputDia.required = true;
+        } else {
+            divDia.style.display = 'none';
+            inputDia.required = false;
+        }
+    }
+</script>
+{% endblock %}

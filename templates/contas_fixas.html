@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+
+{% block title %}Contas Fixas - Finanças em Dia{% endblock %}
+
+{% block content %}
+<div class="page-header mb-4">
+    <h2><i class="bi bi-arrow-repeat"></i> Contas Fixas</h2>
+</div>
+
+<!-- Tabela de Contas Fixas -->
+<div class="card">
+    <div class="card-header">
+        <h5 class="mb-0">Suas Contas Fixas</h5>
+    </div>
+    <div class="card-body">
+        {% if contas %}
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Descrição</th>
+                        <th>Categoria</th>
+                        <th>Tipo</th>
+                        <th class="text-end">Valor</th>
+                        <th class="text-center">Dia Venc.</th>
+                        <th class="text-center">Status</th>
+                        <th>Observação</th>
+                        <th class="text-center">Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for conta in contas %}
+                    <tr>
+                        <td>{{ conta.id }}</td>
+                        <td><strong>{{ conta.descricao }}</strong></td>
+                        <td>{{ conta.categoria_nome }}</td>
+                        <td>
+                            {% if conta.tipo == 'Receita' %}
+                                <span class="badge bg-success">{{ conta.tipo }}</span>
+                            {% else %}
+                                <span class="badge bg-danger">{{ conta.tipo }}</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-end"><strong>{{ conta.valor_formatado }}</strong></td>
+                        <td class="text-center">Dia {{ conta.dia_vencimento }}</td>
+                        <td class="text-center">
+                            {% if conta.ativa_bool %}
+                                <span class="badge bg-success">Ativa</span>
+                            {% else %}
+                                <span class="badge bg-secondary">Inativa</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ conta.observacao or '-' }}</td>
+                        <td class="text-center">
+                            <!-- Editar -->
+                            <a href="{{ url_for('editar_conta_fixa', conta_id=conta.id) }}" 
+                               class="btn btn-sm btn-warning" title="Editar">
+                                <i class="bi bi-pencil"></i>
+                            </a>
+                            
+                            <!-- Excluir -->
+                            <form method="POST" action="{{ url_for('excluir_conta_fixa', conta_id=conta.id) }}" 
+                                  class="d-inline" onsubmit="return confirm('Confirma exclusão desta conta fixa?');">
+                                <button type="submit" class="btn btn-sm btn-danger" title="Excluir">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="alert alert-info mb-0">
+            <i class="bi bi-info-circle"></i> Nenhuma conta fixa cadastrada.
+            <hr>
+            <p class="mb-0">
+                Para criar uma conta fixa, vá até a aba 
+                <a href="{{ url_for('lancamentos') }}">Lançamentos</a> 
+                e marque a opção "Conta Fixa" ao criar um novo lançamento.
+            </p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<div class="alert alert-info mt-4">
+    <h5><i class="bi bi-info-circle"></i> Como funcionam as Contas Fixas?</h5>
+    <p class="mb-0">
+        Contas fixas são lançamentos recorrentes (como aluguel, internet, etc.). 
+        Após cadastrá-las, você pode gerar automaticamente os lançamentos para qualquer mês 
+        através da aba <strong>Lançamentos</strong>, usando o botão "Gerar p/ Mês".
+    </p>
+</div>
+{% endblock %}

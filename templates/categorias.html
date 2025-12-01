@@ -1,0 +1,190 @@
+{% extends "base.html" %}
+
+{% block title %}Categorias - Finanças em Dia{% endblock %}
+
+{% block content %}
+<div class="page-header mb-4">
+    <h2><i class="bi bi-tags"></i> Categorias</h2>
+</div>
+
+<!-- Formulário de Nova Categoria -->
+<div class="card mb-4">
+    <div class="card-header bg-primary text-white">
+        <h5 class="mb-0"><i class="bi bi-plus-circle"></i> Nova Categoria</h5>
+    </div>
+    <div class="card-body">
+        <form method="POST" action="{{ url_for('categorias') }}" class="row g-3">
+            <div class="col-md-5">
+                <label for="nome" class="form-label">Nome da Categoria</label>
+                <input type="text" class="form-control" id="nome" name="nome" 
+                       placeholder="Ex: Alimentação" required>
+            </div>
+            
+            <div class="col-md-3">
+                <label for="tipo" class="form-label">Tipo</label>
+                <select class="form-select" id="tipo" name="tipo" required>
+                    <option value="despesa">Despesa</option>
+                    <option value="receita">Receita</option>
+                </select>
+            </div>
+            
+            <div class="col-md-4 d-flex align-items-end">
+                <button type="submit" class="btn btn-success">
+                    <i class="bi bi-check-circle"></i> Adicionar Categoria
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Lista de Categorias -->
+<div class="row">
+    <!-- Categorias de Despesas -->
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header bg-danger text-white">
+                <h5 class="mb-0"><i class="bi bi-arrow-down-circle"></i> Categorias de Despesas</h5>
+            </div>
+            <div class="card-body">
+                {% set despesas = categorias|selectattr('tipo', 'equalto', 'despesa')|list %}
+                {% if despesas %}
+                <ul class="list-group">
+                    {% for cat in despesas %}
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        <span>
+                            <i class="bi bi-tag"></i> {{ cat.nome }}
+                        </span>
+                        <div class="d-flex gap-2 align-items-center">
+                            <span class="badge bg-danger rounded-pill">{{ cat.tipo }}</span>
+                            <button type="button" class="btn btn-sm btn-warning" 
+                                    data-bs-toggle="modal" 
+                                    data-bs-target="#editarModal{{ cat.id }}">
+                                <i class="bi bi-pencil"></i>
+                            </button>
+                            <form method="POST" action="{{ url_for('excluir_categoria_route', categoria_id=cat.id) }}" 
+                                  style="display: inline;" 
+                                  onsubmit="return confirm('Tem certeza que deseja excluir esta categoria?');">
+                                <button type="submit" class="btn btn-sm btn-danger">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </form>
+                        </div>
+                    </li>
+                    
+                    <!-- Modal para Editar Categoria -->
+                    <div class="modal fade" id="editarModal{{ cat.id }}" tabindex="-1">
+                        <div class="modal-dialog">
+                            <div class="modal-content">
+                                <div class="modal-header">
+                                    <h5 class="modal-title">Editar Categoria</h5>
+                                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                </div>
+                                <form method="POST" action="{{ url_for('editar_categoria', categoria_id=cat.id) }}">
+                                    <div class="modal-body">
+                                        <div class="mb-3">
+                                            <label for="nome{{ cat.id }}" class="form-label">Nome</label>
+                                            <input type="text" class="form-control" id="nome{{ cat.id }}" 
+                                                   name="nome" value="{{ cat.nome }}" required>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label for="tipo{{ cat.id }}" class="form-label">Tipo</label>
+                                            <select class="form-select" id="tipo{{ cat.id }}" name="tipo" required>
+                                                <option value="despesa" {% if cat.tipo == 'despesa' %}selected{% endif %}>Despesa</option>
+                                                <option value="receita" {% if cat.tipo == 'receita' %}selected{% endif %}>Receita</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div class="modal-footer">
+                                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                                        <button type="submit" class="btn btn-primary">Salvar</button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </ul>
+                {% else %}
+                <div class="alert alert-info mb-0">
+                    <i class="bi bi-info-circle"></i> Nenhuma categoria de despesa cadastrada.
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <!-- Categorias de Receitas -->
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header bg-success text-white">
+                <h5 class="mb-0"><i class="bi bi-arrow-up-circle"></i> Categorias de Receitas</h5>
+            </div>
+            <div class="card-body">
+                {% set receitas = categorias|selectattr('tipo', 'equalto', 'receita')|list %}
+                {% if receitas %}
+                <ul class="list-group">
+                    {% for cat in receitas %}
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        <span>
+                            <i class="bi bi-tag"></i> {{ cat.nome }}
+                        </span>
+                        <div class="d-flex gap-2 align-items-center">
+                            <span class="badge bg-success rounded-pill">{{ cat.tipo }}</span>
+                            <button type="button" class="btn btn-sm btn-warning" 
+                                    data-bs-toggle="modal" 
+                                    data-bs-target="#editarModal{{ cat.id }}">
+                                <i class="bi bi-pencil"></i>
+                            </button>
+                            <form method="POST" action="{{ url_for('excluir_categoria_route', categoria_id=cat.id) }}" 
+                                  style="display: inline;" 
+                                  onsubmit="return confirm('Tem certeza que deseja excluir esta categoria?');">
+                                <button type="submit" class="btn btn-sm btn-danger">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </form>
+                        </div>
+                    </li>
+                    
+                    <!-- Modal para Editar Categoria -->
+                    <div class="modal fade" id="editarModal{{ cat.id }}" tabindex="-1">
+                        <div class="modal-dialog">
+                            <div class="modal-content">
+                                <div class="modal-header">
+                                    <h5 class="modal-title">Editar Categoria</h5>
+                                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                </div>
+                                <form method="POST" action="{{ url_for('editar_categoria', categoria_id=cat.id) }}">
+                                    <div class="modal-body">
+                                        <div class="mb-3">
+                                            <label for="nome{{ cat.id }}" class="form-label">Nome</label>
+                                            <input type="text" class="form-control" id="nome{{ cat.id }}" 
+                                                   name="nome" value="{{ cat.nome }}" required>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label for="tipo{{ cat.id }}" class="form-label">Tipo</label>
+                                            <select class="form-select" id="tipo{{ cat.id }}" name="tipo" required>
+                                                <option value="despesa" {% if cat.tipo == 'despesa' %}selected{% endif %}>Despesa</option>
+                                                <option value="receita" {% if cat.tipo == 'receita' %}selected{% endif %}>Receita</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div class="modal-footer">
+                                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                                        <button type="submit" class="btn btn-primary">Salvar</button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </ul>
+                {% else %}
+                <div class="alert alert-info mb-0">
+                    <i class="bi bi-info-circle"></i> Nenhuma categoria de receita cadastrada.
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,79 @@
+# Arquivo .gitignore para Finanças em Dia
+
+# Ambiente virtual Python
+venv/
+env/
+ENV/
+.venv
+
+# Banco de dados
+*.db
+*.sqlite
+*.sqlite3
+
+# Arquivos Python compilados
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Relatórios gerados
+relatorios/
+*.pdf
+
+# Logs
+*.log
+
+# Scripts de teste e auxiliares
+teste_*.py
+testar_*.py
+listar_*.py
+buscar_*.py
+criar_dados_*.py
+corrigir_*.py
+verificar_*.py
+gerar_icones.py
+
+# Configurações do IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Arquivos do sistema
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Arquivos temporários
+*.tmp
+*.bak
+*.cache
+
+# Variáveis de ambiente
+.env
+.flaskenv
+
+# Coverage
+htmlcov/
+.coverage
+.coverage.*
+coverage.xml
+*.cover
+
+# Pytest
+.pytest_cache/
+
+# Flask
+instance/
+.webassets-cache
+
+# Arquivos de distribuição
+dist/
+build/
+*.egg-info/
+
+# Documentação temporária
+*_GUIA_TEMP.md
+*_TESTE_TEMP.md

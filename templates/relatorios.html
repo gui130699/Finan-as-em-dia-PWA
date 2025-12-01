@@ -1,0 +1,219 @@
+{% extends "base.html" %}
+
+{% block title %}Relatórios - Finanças em Dia{% endblock %}
+
+{% block content %}
+<div class="page-header mb-4">
+    <h2><i class="bi bi-file-earmark-bar-graph"></i> Relatórios</h2>
+</div>
+
+<!-- Filtro por Período -->
+<div class="card mb-4">
+    <div class="card-header bg-primary text-white">
+        <h5 class="mb-0"><i class="bi bi-calendar-range"></i> Selecionar Período</h5>
+    </div>
+    <div class="card-body">
+        <form method="POST" action="{{ url_for('relatorios') }}">
+            <div class="row g-3">
+                <div class="col-md-3">
+                    <label for="data_inicial" class="form-label">Data Inicial</label>
+                    <input type="date" class="form-control" id="data_inicial" name="data_inicial" 
+                           value="{{ data_inicial or '' }}" required>
+                </div>
+                
+                <div class="col-md-3">
+                    <label for="data_final" class="form-label">Data Final</label>
+                    <input type="date" class="form-control" id="data_final" name="data_final" 
+                           value="{{ data_final or '' }}" required>
+                </div>
+                
+                <div class="col-md-6 d-flex align-items-end">
+                    <button type="submit" class="btn btn-primary me-2">
+                        <i class="bi bi-search"></i> Buscar Lançamentos
+                    </button>
+                    
+                    {% if lancamentos %}
+                    <button type="submit" formaction="{{ url_for('exportar_pdf') }}" 
+                            class="btn btn-success">
+                        <i class="bi bi-file-earmark-pdf"></i> Exportar PDF
+                    </button>
+                    {% endif %}
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Resultados -->
+{% if lancamentos %}
+<!-- Resumo -->
+<div class="row mb-4">
+    {% set total_receitas = lancamentos|selectattr('tipo', 'equalto', 'receita')|selectattr('status', 'equalto', 'pago')|sum(attribute='valor') %}
+    {% set total_despesas = lancamentos|selectattr('tipo', 'equalto', 'despesa')|selectattr('status', 'equalto', 'pago')|sum(attribute='valor') %}
+    {% set saldo = total_receitas - total_despesas %}
+    
+    <div class="col-md-4">
+        <div class="card text-white bg-success">
+            <div class="card-body text-center">
+                <h6 class="card-title">Receitas Recebidas</h6>
+                <h3>R$ {{ "%.2f"|format(total_receitas) }}</h3>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card text-white bg-danger">
+            <div class="card-body text-center">
+                <h6 class="card-title">Despesas Pagas</h6>
+                <h3>R$ {{ "%.2f"|format(total_despesas) }}</h3>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card text-white {% if saldo >= 0 %}bg-primary{% else %}bg-warning{% endif %}">
+            <div class="card-body text-center">
+                <h6 class="card-title">Saldo do Período</h6>
+                <h3>R$ {{ "%.2f"|format(saldo) }}</h3>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Tabela de Lançamentos -->
+<div class="card">
+    <div class="card-header">
+        <h5 class="mb-0">Lançamentos do Período ({{ lancamentos|length }} registros)</h5>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover table-sm">
+                <thead>
+                    <tr>
+                        <th>Data</th>
+                        <th>Descrição</th>
+                        <th>Categoria</th>
+                        <th>Tipo</th>
+                        <th>Status</th>
+                        <th>Parcela</th>
+                        <th class="text-end">Valor</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for lanc in lancamentos %}
+                    <tr class="{{ lanc.classe_css }}">
+                        <td>{{ lanc.data_formatada }}</td>
+                        <td>{{ lanc.descricao }}</td>
+                        <td>{{ lanc.categoria_nome }}</td>
+                        <td>
+                            {% if lanc.tipo == 'receita' %}
+                                <span class="badge bg-success">Receita</span>
+                            {% else %}
+                                <span class="badge bg-danger">Despesa</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ lanc.status }}</td>
+                        <td>{{ lanc.parcela_texto }}</td>
+                        <td class="text-end"><strong>{{ lanc.valor_formatado }}</strong></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                <tfoot class="table-light">
+                    <tr>
+                        <td colspan="6" class="text-end"><strong>Total de Lançamentos:</strong></td>
+                        <td class="text-end">
+                            <strong>{{ lancamentos|length }}</strong>
+                        </td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Gráficos por Categoria (Resumo) -->
+<div class="row mt-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header bg-danger text-white">
+                <h5 class="mb-0"><i class="bi bi-pie-chart"></i> Despesas por Categoria</h5>
+            </div>
+            <div class="card-body">
+                {% set despesas_cat = {} %}
+                {% for lanc in lancamentos %}
+                    {% if lanc.tipo == 'despesa' and lanc.status == 'pago' %}
+                        {% if lanc.categoria_nome in despesas_cat %}
+                            {% set _ = despesas_cat.update({lanc.categoria_nome: despesas_cat[lanc.categoria_nome] + lanc.valor}) %}
+                        {% else %}
+                            {% set _ = despesas_cat.update({lanc.categoria_nome: lanc.valor}) %}
+                        {% endif %}
+                    {% endif %}
+                {% endfor %}
+                
+                {% if despesas_cat %}
+                <ul class="list-group">
+                    {% for cat, valor in despesas_cat.items()|sort(attribute='1', reverse=True) %}
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        {{ cat }}
+                        <span class="badge bg-danger rounded-pill">
+                            R$ {{ "%.2f"|format(valor) }}
+                        </span>
+                    </li>
+                    {% endfor %}
+                </ul>
+                {% else %}
+                <p class="text-muted mb-0">Nenhuma despesa paga no período.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header bg-success text-white">
+                <h5 class="mb-0"><i class="bi bi-pie-chart"></i> Receitas por Categoria</h5>
+            </div>
+            <div class="card-body">
+                {% set receitas_cat = {} %}
+                {% for lanc in lancamentos %}
+                    {% if lanc.tipo == 'receita' and lanc.status == 'pago' %}
+                        {% if lanc.categoria_nome in receitas_cat %}
+                            {% set _ = receitas_cat.update({lanc.categoria_nome: receitas_cat[lanc.categoria_nome] + lanc.valor}) %}
+                        {% else %}
+                            {% set _ = receitas_cat.update({lanc.categoria_nome: lanc.valor}) %}
+                        {% endif %}
+                    {% endif %}
+                {% endfor %}
+                
+                {% if receitas_cat %}
+                <ul class="list-group">
+                    {% for cat, valor in receitas_cat.items()|sort(attribute='1', reverse=True) %}
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        {{ cat }}
+                        <span class="badge bg-success rounded-pill">
+                            R$ {{ "%.2f"|format(valor) }}
+                        </span>
+                    </li>
+                    {% endfor %}
+                </ul>
+                {% else %}
+                <p class="text-muted mb-0">Nenhuma receita recebida no período.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+{% elif data_inicial and data_final %}
+<div class="alert alert-warning">
+    <i class="bi bi-exclamation-triangle"></i> 
+    Nenhum lançamento encontrado no período de <strong>{{ data_inicial }}</strong> 
+    a <strong>{{ data_final }}</strong>.
+</div>
+{% else %}
+<div class="alert alert-info">
+    <i class="bi bi-info-circle"></i> 
+    Selecione um período acima para visualizar os lançamentos e gerar relatórios.
+</div>
+{% endif %}
+{% endblock %}
