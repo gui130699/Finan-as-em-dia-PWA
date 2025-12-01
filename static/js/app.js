@@ -5,8 +5,15 @@
 // ============================================
 
 // Configuração do Supabase
-const SUPABASE_URL = 'https://xgdlagtezxpnwafdzpci.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhnZGxhZ3RlenhwbndhZmR6cGNpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjMxMzk1NTksImV4cCI6MjA3ODcxNTU1OX0.EQCHnNEzuPIxNu-2bOoO6RL2gs4W6qQAk8Bx3LTb2uU';
+// As credenciais devem estar em config.local.js (não commitado)
+// ou em window.SUPABASE_CONFIG definido por variáveis de ambiente
+const SUPABASE_URL = window.SUPABASE_CONFIG?.url || '';
+const SUPABASE_KEY = window.SUPABASE_CONFIG?.key || '';
+
+if (!SUPABASE_URL || !SUPABASE_KEY) {
+    console.error('⚠️ CONFIGURAÇÃO NECESSÁRIA: Credenciais do Supabase não encontradas');
+    console.info('💡 Crie o arquivo static/js/config.local.js baseado em config.local.example.js');
+}
 
 const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
@@ -16,6 +23,81 @@ let currentPage = 'login';
 let categorias = [];
 let contasFixas = [];
 let mesAtual = new Date().toISOString().slice(0, 7);
+
+// ============================================
+// UTILITÁRIOS - TRATAMENTO DE ERROS
+// ============================================
+
+/**
+ * Função auxiliar para tratamento de erros
+ * @param {Error} error - Objeto de erro
+ * @param {string} contexto - Contexto onde o erro ocorreu
+ * @param {boolean} mostrarAlerta - Se deve mostrar alerta ao usuário
+ * @returns {string} Mensagem de erro formatada
+ */
+function tratarErro(error, contexto = '', mostrarAlerta = true) {
+    console.error(`❌ Erro${contexto ? ' em ' + contexto : ''}:`, error);
+    
+    let mensagem = 'Ocorreu um erro inesperado.';
+    
+    // Identificar tipo de erro
+    if (error.message) {
+        if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
+            mensagem = 'Erro de conexão. Verifique sua internet.';
+        } else if (error.message.includes('duplicate key') || error.message.includes('already exists')) {
+            mensagem = 'Este registro já existe.';
+        } else if (error.message.includes('not found') || error.message.includes('No rows')) {
+            mensagem = 'Registro não encontrado.';
+        } else if (error.message.includes('permission') || error.message.includes('RLS')) {
+            mensagem = 'Permissão negada. Faça login novamente.';
+        } else {
+            mensagem = error.message;
+        }
+    }
+    
+    if (mostrarAlerta) {
+        showAlert(mensagem, 'danger');
+    }
+    
+    return mensagem;
+}
+
+/**
+ * Validar valor monetário
+ * @param {number} valor - Valor a validar
+ * @returns {object} {valido: boolean, erro: string}
+ */
+function validarValor(valor) {
+    if (!valor || isNaN(valor)) {
+        return { valido: false, erro: 'Valor inválido' };
+    }
+    if (valor <= 0) {
+        return { valido: false, erro: 'O valor deve ser maior que zero' };
+    }
+    if (valor > 1000000000) {
+        return { valido: false, erro: 'Valor muito alto (máximo R$ 1 bilhão)' };
+    }
+    return { valido: true };
+}
+
+/**
+ * Validar descrição
+ * @param {string} descricao - Descrição a validar
+ * @returns {object} {valido: boolean, erro: string}
+ */
+function validarDescricao(descricao) {
+    const desc = descricao.trim();
+    if (!desc) {
+        return { valido: false, erro: 'Descrição é obrigatória' };
+    }
+    if (desc.length < 3) {
+        return { valido: false, erro: 'Descrição muito curta (mínimo 3 caracteres)' };
+    }
+    if (desc.length > 200) {
+        return { valido: false, erro: 'Descrição muito longa (máximo 200 caracteres)' };
+    }
+    return { valido: true };
+}
 
 // ============================================
 // INICIALIZAÇÃO
@@ -1541,13 +1623,37 @@ async function handleAddLancamento(event) {
     const ehContaFixa = document.getElementById('lanc-eh-conta-fixa').checked;
     
     const data = document.getElementById('lanc-data').value;
-    const descricao = document.getElementById('lanc-descricao').value;
+    const descricao = document.getElementById('lanc-descricao').value.trim();
     const categoria_id = parseInt(document.getElementById('lanc-categoria').value);
     
     console.log('Dados do formulário:', { data, descricao, categoria_id, ehParcelado, ehContaFixa });
     
+    // Validações básicas
     if (!data || !descricao || !categoria_id) {
         showAlert('Preencha todos os campos obrigatórios!', 'warning');
+        return;
+    }
+    
+    // Validar data
+    const dataObj = new Date(data + 'T00:00:00');
+    const hoje = new Date();
+    hoje.setHours(0, 0, 0, 0);
+    const dataMaxima = new Date();
+    dataMaxima.setFullYear(dataMaxima.getFullYear() + 10); // Máximo 10 anos no futuro
+    
+    if (dataObj > dataMaxima) {
+        showAlert('Data muito distante no futuro (máximo 10 anos)!', 'warning');
+        return;
+    }
+    
+    // Validar descrição
+    if (descricao.length < 3) {
+        showAlert('Descrição muito curta (mínimo 3 caracteres)!', 'warning');
+        return;
+    }
+    
+    if (descricao.length > 200) {
+        showAlert('Descrição muito longa (máximo 200 caracteres)!', 'warning');
         return;
     }
     
@@ -1570,6 +1676,24 @@ async function handleAddLancamento(event) {
             return;
         }
         
+        // Validar valor positivo
+        if (valorInput <= 0) {
+            showAlert('O valor deve ser maior que zero!', 'warning');
+            return;
+        }
+        
+        // Validar valor máximo (1 bilhão)
+        if (valorInput > 1000000000) {
+            showAlert('Valor muito alto (máximo R$ 1 bilhão)!', 'warning');
+            return;
+        }
+        
+        // Validar número de parcelas
+        if (parcelas < 1 || parcelas > 360) {
+            showAlert('Número de parcelas inválido (1 a 360)!', 'warning');
+            return;
+        }
+        
         if (tipoValor === 'total') {
             // Valor total - dividir pelas parcelas
             valor = valorInput / parcelas;
@@ -1582,6 +1706,18 @@ async function handleAddLancamento(event) {
         
         if (!valor || isNaN(valor)) {
             showAlert('Preencha o valor!', 'warning');
+            return;
+        }
+        
+        // Validar valor positivo
+        if (valor <= 0) {
+            showAlert('O valor deve ser maior que zero!', 'warning');
+            return;
+        }
+        
+        // Validar valor máximo
+        if (valor > 1000000000) {
+            showAlert('Valor muito alto (máximo R$ 1 bilhão)!', 'warning');
             return;
         }
     }

@@ -4,9 +4,12 @@ Usa variáveis de ambiente em produção ou valores padrão em desenvolvimento
 """
 import os
 
-# Credenciais do Supabase (usar variáveis de ambiente em produção)
-SUPABASE_URL = os.environ.get('SUPABASE_URL', 'https://xgdlagtezxpnwafdzpci.supabase.co')
-SUPABASE_KEY = os.environ.get('SUPABASE_KEY', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhnZGxhZ3RlenhwbndhZmR6cGNpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjMxMzk1NTksImV4cCI6MjA3ODcxNTU1OX0.EQCHnNEzuPIxNu-2bOoO6RL2gs4W6qQAk8Bx3LTb2uU')
+# Credenciais do Supabase (usar variáveis de ambiente)
+# Para desenvolvimento local, crie um arquivo .env na raiz do projeto
+# Para produção, configure as variáveis de ambiente no servidor
+SUPABASE_URL = os.environ.get('SUPABASE_URL', '')
+SUPABASE_KEY = os.environ.get('SUPABASE_KEY', '')
 
-# Senha do banco (para referência administrativa)
-# 9331077093.Gui
+if not SUPABASE_URL or not SUPABASE_KEY:
+    print('⚠️  AVISO: Configure as variáveis SUPABASE_URL e SUPABASE_KEY')
+    print('Crie um arquivo .env ou configure as variáveis de ambiente do sistema')

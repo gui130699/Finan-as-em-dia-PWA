@@ -6,6 +6,12 @@ env/
 ENV/
 .venv
 
+# Variáveis de ambiente e configurações sensíveis
+.env
+.env.local
+.env.*.local
+config_local.py
+
 # Banco de dados
 *.db
 *.sqlite
@@ -48,6 +54,10 @@ desktop.ini
 
 # Arquivos temporários
 *.tmp
+
+# Configurações locais (contém credenciais)
+static/js/config.local.js
+config_local.py
 *.bak
 *.cache
 

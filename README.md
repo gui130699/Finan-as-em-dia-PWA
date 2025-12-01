@@ -59,9 +59,32 @@ pip install -r requirements.txt
 2. Crie um novo projeto
 3. Execute o script `criar_tabelas_supabase.sql` no SQL Editor
 4. Copie a URL e anon key (Settings > API)
-5. Edite `config.py` com suas credenciais
 
-### 5. Execute o aplicativo
+### 5. Configure as credenciais (IMPORTANTE! 🔒)
+
+**Backend (Flask):**
+```bash
+# Copie o arquivo de exemplo
+cp .env.example .env
+
+# Edite .env com suas credenciais
+# SUPABASE_URL=sua_url_aqui
+# SUPABASE_KEY=sua_chave_aqui
+```
+
+**Frontend (PWA):**
+```bash
+# Copie o arquivo de exemplo
+cp static/js/config.local.example.js static/js/config.local.js
+
+# Edite config.local.js com suas credenciais
+```
+
+⚠️ **NUNCA commite os arquivos `.env` e `config.local.js`!** Eles estão no `.gitignore` por segurança.
+
+📖 Leia mais em [SEGURANCA.md](SEGURANCA.md)
+
+### 6. Execute o aplicativo
 ```bash
 python app.py
 ```
