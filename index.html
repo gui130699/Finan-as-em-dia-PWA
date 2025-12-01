@@ -37,18 +37,27 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     
     <!-- Configuração (carrega credenciais) -->
-    <script src="static/js/config.js?v=20251201"></script>
     <script>
-        // Tentar carregar config.local.js (pode não existir)
+        // Configuração do Supabase
+        // Para desenvolvimento local: crie config.local.js
+        // Para GitHub Pages: as credenciais estão definidas aqui
+        window.SUPABASE_CONFIG = {
+            url: 'https://xgdlagtezxpnwafdzpci.supabase.co',
+            key: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhnZGxhZ3RlenhwbndhZmR6cGNpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjMxMzk1NTksImV4cCI6MjA3ODcxNTU1OX0.EQCHnNEzuPIxNu-2bOoO6RL2gs4W6qQAk8Bx3LTb2uU'
+        };
+    </script>
+    <script>
+        // Tentar carregar config.local.js (sobrescreve se existir - desenvolvimento local)
         (function() {
             var script = document.createElement('script');
             script.src = 'static/js/config.local.js?v=20251201';
             script.onerror = function() {
-                console.warn('⚠️ config.local.js não encontrado. Configure suas credenciais.');
+                // Silenciosamente ignora se não existir (normal no GitHub Pages)
             };
             document.head.appendChild(script);
         })();
     </script>
+    <script src="static/js/config.js?v=20251201"></script>
     
     <!-- App Principal -->
     <script src="static/js/app.js?v=20251201"></script>

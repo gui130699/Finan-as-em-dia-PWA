@@ -5,15 +5,9 @@
 // ============================================
 
 // Configuração do Supabase
-// As credenciais devem estar em config.local.js (não commitado)
-// ou em window.SUPABASE_CONFIG definido por variáveis de ambiente
+// As credenciais são carregadas do index.html ou config.local.js
 const SUPABASE_URL = window.SUPABASE_CONFIG?.url || '';
 const SUPABASE_KEY = window.SUPABASE_CONFIG?.key || '';
-
-if (!SUPABASE_URL || !SUPABASE_KEY) {
-    console.error('⚠️ CONFIGURAÇÃO NECESSÁRIA: Credenciais do Supabase não encontradas');
-    console.info('💡 Crie o arquivo static/js/config.local.js baseado em config.local.example.js');
-}
 
 const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
