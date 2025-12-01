@@ -1579,10 +1579,14 @@ async function gerarContasFixasMesAtual() {
         const mes = document.getElementById('filtro-mes')?.value || mesAtual;
         const [ano, mesNum] = mes.split('-').map(Number);
         
+        // Criar data de referência do mês selecionado
+        const mesReferencia = new Date(ano, mesNum - 1, 1);
+        mesReferencia.setHours(0, 0, 0, 0);
+        
         // Buscar todas as contas fixas ativas
         const { data: contasFixas, error: cfError } = await supabase
             .from('contas_fixas')
-            .select('*')
+            .select('*, lancamentos!inner(id, data, conta_fixa_id)')
             .eq('usuario_id', currentUser.id)
             .eq('ativa', true);
         
@@ -1595,8 +1599,32 @@ async function gerarContasFixasMesAtual() {
         
         let geradas = 0;
         let jaCriadas = 0;
+        let ignoradas = 0;
         
         for (const cf of contasFixas) {
+            // Buscar o primeiro lançamento desta conta fixa para determinar data de cadastro
+            const { data: primeiroLanc, error: primeiroError } = await supabase
+                .from('lancamentos')
+                .select('data')
+                .eq('usuario_id', currentUser.id)
+                .eq('conta_fixa_id', cf.id)
+                .order('data', { ascending: true })
+                .limit(1);
+            
+            if (primeiroError) throw primeiroError;
+            
+            // Se encontrou lançamento anterior, usar como referência de cadastro
+            if (primeiroLanc && primeiroLanc.length > 0) {
+                const dataCadastro = new Date(primeiroLanc[0].data + 'T00:00:00');
+                const mesCadastro = new Date(dataCadastro.getFullYear(), dataCadastro.getMonth(), 1);
+                
+                // Verificar se a conta foi cadastrada depois do mês de referência
+                if (mesCadastro > mesReferencia) {
+                    ignoradas++;
+                    continue;
+                }
+            }
+            
             // Ajustar dia de vencimento para o mês selecionado
             const ultimoDia = new Date(ano, mesNum, 0).getDate();
             const dia = Math.min(cf.dia_vencimento, ultimoDia);
@@ -1609,7 +1637,7 @@ async function gerarContasFixasMesAtual() {
                 .eq('usuario_id', currentUser.id)
                 .eq('conta_fixa_id', cf.id)
                 .gte('data', `${mes}-01`)
-                .lte('data', `${mes}-${ultimoDia}`)
+                .lte('data', `${mes}-${String(ultimoDia).padStart(2, '0')}`)
                 .limit(1);
             
             if (checkError) throw checkError;
@@ -1639,12 +1667,21 @@ async function gerarContasFixasMesAtual() {
             geradas++;
         }
         
-        let mensagem = `${geradas} conta(s) fixa(s) gerada(s) com sucesso!`;
+        let mensagem = '';
+        if (geradas > 0) {
+            mensagem = `${geradas} conta(s) fixa(s) gerada(s) com sucesso!`;
+        }
         if (jaCriadas > 0) {
-            mensagem += ` (${jaCriadas} já existia(m) neste mês)`;
+            mensagem += (mensagem ? ' ' : '') + `${jaCriadas} já existia(m) neste mês.`;
+        }
+        if (ignoradas > 0) {
+            mensagem += (mensagem ? ' ' : '') + `${ignoradas} ignorada(s) (cadastro posterior ao mês).`;
+        }
+        if (!mensagem) {
+            mensagem = 'Nenhuma ação realizada.';
         }
         
-        showAlert(mensagem, 'success');
+        showAlert(mensagem, geradas > 0 ? 'success' : 'info');
         await loadLancamentos();
         
     } catch (err) {
