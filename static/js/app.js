@@ -3361,13 +3361,22 @@ async function loadRelatorios() {
         
         if (error) throw error;
         
+        // Armazenar categorias globalmente para usar no filtro dinâmico
+        window.todasCategorias = data || [];
+        
         const selectCategoria = document.getElementById('rel-categoria');
         if (selectCategoria && data && data.length > 0) {
             selectCategoria.innerHTML = '<option value="">Todas</option>' +
-                data.map(c => `<option value="${c.id}">${c.nome}</option>`).join('');
+                data.map(c => `<option value="${c.id}">${c.nome} (${c.tipo === 'receita' ? 'Receita' : 'Despesa'})</option>`).join('');
         }
     } catch (err) {
         console.error('Erro ao carregar categorias:', err);
+    }
+    
+    // Adicionar listener no filtro de tipo para atualizar categorias
+    const tipoSelect = document.getElementById('rel-tipo');
+    if (tipoSelect) {
+        tipoSelect.addEventListener('change', filtrarCategoriasRelatorio);
     }
     
     await gerarRelatorio();
@@ -3698,6 +3707,24 @@ async function exportarRelatorioPDF() {
         console.error('Erro ao exportar PDF:', err);
         showAlert('Erro ao exportar PDF: ' + err.message, 'danger');
     }
+}
+
+function filtrarCategoriasRelatorio() {
+    const tipoSelecionado = document.getElementById('rel-tipo').value;
+    const selectCategoria = document.getElementById('rel-categoria');
+    
+    if (!selectCategoria || !window.todasCategorias) return;
+    
+    let categoriasFiltradas = window.todasCategorias;
+    
+    // Filtrar por tipo se selecionado
+    if (tipoSelecionado) {
+        categoriasFiltradas = window.todasCategorias.filter(c => c.tipo === tipoSelecionado);
+    }
+    
+    // Atualizar o select
+    selectCategoria.innerHTML = '<option value="">Todas</option>' +
+        categoriasFiltradas.map(c => `<option value="${c.id}">${c.nome} (${c.tipo === 'receita' ? 'Receita' : 'Despesa'})</option>`).join('');
 }
 
 // ============================================
