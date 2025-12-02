@@ -1122,7 +1122,7 @@ async function loadAvisosVencimento(lancamentos, saldoAtual, despesasPendentes, 
             // Vencidas
             if (vencidas.length > 0) {
                 avisosHTML += `
-                    <div class="col-12 mb-3">
+                    <div class="col-md-6 mb-3">
                         <div class="card border-danger">
                             <div class="card-header bg-danger text-white">
                                 <strong><i class="bi bi-exclamation-triangle"></i> VENCIDAS (${vencidas.length})</strong>
@@ -1131,7 +1131,7 @@ async function loadAvisosVencimento(lancamentos, saldoAtual, despesasPendentes, 
                                 <div class="list-group list-group-flush">
                                     ${vencidas.map(c => `
                                         <div class="list-group-item list-group-item-danger">
-                                            <div class="d-flex justify-content-between align-items-center">
+                                            <div class="d-flex justify-content-between align-items-start mb-2">
                                                 <div>
                                                     <strong>${c.descricao}</strong>
                                                     <br><small>${c.categorias?.nome || 'Sem categoria'} | ${formatarData(c.data)}</small>
@@ -1139,6 +1139,14 @@ async function loadAvisosVencimento(lancamentos, saldoAtual, despesasPendentes, 
                                                 <div class="text-end">
                                                     <strong class="text-danger">R$ ${parseFloat(c.valor).toFixed(2)}</strong>
                                                 </div>
+                                            </div>
+                                            <div class="d-flex gap-2">
+                                                <button class="btn btn-success btn-sm flex-fill" onclick="pagarLancamento(${c.id})">
+                                                    <i class="bi bi-check-circle"></i> Pagar
+                                                </button>
+                                                <button class="btn btn-warning btn-sm flex-fill" onclick="adiarLancamento(${c.id}, '${c.descricao}', '${c.data}')">
+                                                    <i class="bi bi-calendar-plus"></i> Adiar
+                                                </button>
                                             </div>
                                         </div>
                                     `).join('')}
@@ -1191,12 +1199,20 @@ async function loadAvisosVencimento(lancamentos, saldoAtual, despesasPendentes, 
                                 <div class="list-group list-group-flush">
                                     ${vencem3Dias.map(c => `
                                         <div class="list-group-item">
-                                            <div class="d-flex justify-content-between align-items-center">
+                                            <div class="d-flex justify-content-between align-items-start mb-2">
                                                 <div>
                                                     <strong>${c.descricao}</strong>
                                                     <br><small>${formatarData(c.data)}</small>
                                                 </div>
                                                 <strong>R$ ${parseFloat(c.valor).toFixed(2)}</strong>
+                                            </div>
+                                            <div class="d-flex gap-2">
+                                                <button class="btn btn-success btn-sm flex-fill" onclick="pagarLancamento(${c.id})">
+                                                    <i class="bi bi-check-circle"></i> Pagar
+                                                </button>
+                                                <button class="btn btn-warning btn-sm flex-fill" onclick="adiarLancamento(${c.id}, '${c.descricao}', '${c.data}')">
+                                                    <i class="bi bi-calendar-plus"></i> Adiar
+                                                </button>
                                             </div>
                                         </div>
                                     `).join('')}
@@ -1257,6 +1273,90 @@ async function loadAvisosVencimento(lancamentos, saldoAtual, despesasPendentes, 
                 </div>
             `;
         }
+    }
+}
+
+async function pagarLancamento(lancamentoId) {
+    try {
+        const { error } = await supabase
+            .from('lancamentos')
+            .update({ status: 'pago' })
+            .eq('id', lancamentoId);
+        
+        if (error) throw error;
+        
+        showAlert('Lançamento pago com sucesso!', 'success');
+        await loadDashboard();
+    } catch (err) {
+        console.error('Erro ao pagar lançamento:', err);
+        showAlert('Erro ao pagar lançamento: ' + err.message, 'danger');
+    }
+}
+
+async function adiarLancamento(lancamentoId, descricao, dataAtual) {
+    // Criar modal para selecionar nova data
+    const modalHTML = `
+        <div class="modal fade show" style="display: block; background: rgba(0,0,0,0.5);" id="modalAdiar">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title"><i class="bi bi-calendar-plus"></i> Adiar Lançamento</h5>
+                        <button type="button" class="btn-close" onclick="fecharModalAdiar()"></button>
+                    </div>
+                    <div class="modal-body">
+                        <p><strong>${descricao}</strong></p>
+                        <p class="text-muted">Data atual: ${formatarData(dataAtual)}</p>
+                        <div class="mb-3">
+                            <label class="form-label">Nova Data de Vencimento:</label>
+                            <input type="date" class="form-control" id="nova-data-vencimento" value="${dataAtual}" min="${new Date().toISOString().split('T')[0]}">
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" onclick="fecharModalAdiar()">Cancelar</button>
+                        <button type="button" class="btn btn-primary" onclick="confirmarAdiar(${lancamentoId})">
+                            <i class="bi bi-check"></i> Confirmar
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    const modalContainer = document.createElement('div');
+    modalContainer.id = 'modal-adiar-container';
+    modalContainer.innerHTML = modalHTML;
+    document.body.appendChild(modalContainer);
+}
+
+function fecharModalAdiar() {
+    const modal = document.getElementById('modal-adiar-container');
+    if (modal) {
+        modal.remove();
+    }
+}
+
+async function confirmarAdiar(lancamentoId) {
+    try {
+        const novaData = document.getElementById('nova-data-vencimento').value;
+        
+        if (!novaData) {
+            showAlert('Selecione uma data!', 'warning');
+            return;
+        }
+        
+        const { error } = await supabase
+            .from('lancamentos')
+            .update({ data: novaData })
+            .eq('id', lancamentoId);
+        
+        if (error) throw error;
+        
+        showAlert('Data adiada com sucesso!', 'success');
+        fecharModalAdiar();
+        await loadDashboard();
+    } catch (err) {
+        console.error('Erro ao adiar lançamento:', err);
+        showAlert('Erro ao adiar lançamento: ' + err.message, 'danger');
     }
 }
 
