@@ -4702,24 +4702,35 @@ async function exibirConciliacoesSalvas() {
         html += '<thead><tr>';
         html += '<th>Lançamento</th>';
         html += '<th>Valor</th>';
-        html += '<th>Extratos Vinculados</th>';
+        html += '<th style="width: 50px;">Extratos</th>';
         html += '<th>Ações</th>';
         html += '</tr></thead><tbody>';
         
+        let index = 0;
         Object.values(porLancamento).forEach(item => {
             if (!item.lancamento) return;
             
             const lanc = item.lancamento;
+            const collapseId = 'collapse-' + index;
+            
             html += '<tr>';
-            html += '<td>' + lanc.descricao + '<br><small class="text-muted">' + formatarData(lanc.data) + '</small></td>';
+            html += '<td>' + lanc.descricao + ' <small class="text-muted">(' + formatarData(lanc.data) + ')</small></td>';
             html += '<td><strong>R$ ' + parseFloat(lanc.valor).toFixed(2) + '</strong></td>';
-            html += '<td><span class="badge bg-info">' + item.extratos.length + ' extrato(s)</span><br>';
+            html += '<td>';
+            html += '<button class="btn btn-sm btn-info" data-bs-toggle="collapse" data-bs-target="#' + collapseId + '" aria-expanded="false">';
+            html += '<i class="bi bi-eye"></i> ' + item.extratos.length;
+            html += '</button>';
+            html += '<div class="collapse mt-2" id="' + collapseId + '">';
+            html += '<div class="card card-body p-2">';
             item.extratos.forEach(e => {
-                html += '<small>' + e.descricao_extrato + ' - R$ ' + e.valor_extrato.toFixed(2) + '</small><br>';
+                html += '<small class="d-block">' + e.descricao_extrato + ' - R$ ' + e.valor_extrato.toFixed(2) + '</small>';
             });
+            html += '</div></div>';
             html += '</td>';
             html += '<td><button class="btn btn-sm btn-danger" onclick="excluirConciliacao(' + lanc.id + ')"><i class="bi bi-trash"></i></button></td>';
             html += '</tr>';
+            
+            index++;
         });
         
         html += '</tbody></table></div>';
