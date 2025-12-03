@@ -2134,43 +2134,35 @@ async function loadLancamentos() {
         }
         
         if (data.length === 0) {
-            listEl.innerHTML = `
-                <div class="alert alert-info">
-                    <i class="bi bi-info-circle"></i> Nenhum lançamento encontrado.
-                </div>
-            `;
+            listEl.innerHTML = '<div class="alert alert-info"><i class="bi bi-info-circle"></i> Nenhum lançamento encontrado.</div>';
             return;
         }
         
-        let html = `
-            <div class="table-responsive">
-                <table class="table table-hover">
-                    <thead>
-                        <tr>
-                            <th>Data</th>
-                            <th>Descrição</th>
-                            <th>Categoria</th>
-                            <th>Valor</th>
-                            <th>Tipo</th>
-                            <th>Parcelas</th>
-                            <th>Status</th>
-                            <th>Ações</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-        `;
+        let html = '<div class="table-responsive">';
+        html += '<table class="table table-hover">';
+        html += '<thead><tr>';
+        html += '<th>Data</th>';
+        html += '<th>Descrição</th>';
+        html += '<th>Categoria</th>';
+        html += '<th>Valor</th>';
+        html += '<th>Tipo</th>';
+        html += '<th>Parcelas</th>';
+        html += '<th>Status</th>';
+        html += '<th>Ações</th>';
+        html += '</tr></thead>';
+        html += '<tbody>';
         
         data.forEach(lanc => {
             const valor = parseFloat(lanc.valor).toFixed(2);
             const classeValor = lanc.tipo === 'receita' ? 'text-success' : 'text-danger';
             const descricaoBase = lanc.descricao.split(' (')[0]; // Remove info de parcela da descrição
-            const parcelaDisplay = lanc.parcela_atual && lanc.total_parcelas ? `${lanc.parcela_atual}/${lanc.total_parcelas}` : '-';
+            const parcelaDisplay = lanc.parcela_atual && lanc.total_parcelas ? lanc.parcela_atual + '/' + lanc.total_parcelas : '-';
             const isQuitacao = lanc.descricao.includes('Quitação');
             const isConciliado = lancamentosConciliados.has(lanc.id);
             const classeConciliado = isConciliado ? 'lancamento-conciliado' : '';
             
             if (isConciliado) {
-                console.log('Lançamento conciliado encontrado:', lanc.id, lanc.descricao);
+                console.log('Lançamento conciliado ID:', lanc.id, 'Descrição:', lanc.descricao, 'Classe:', classeConciliado);
             }
             
             html += '<tr class="' + classeConciliado + '">';
@@ -2210,6 +2202,12 @@ async function loadLancamentos() {
         // Verificar se as classes foram aplicadas
         const trsComClasse = listEl.querySelectorAll('tr.lancamento-conciliado');
         console.log('Total de linhas conciliadas:', trsComClasse.length);
+        
+        if (trsComClasse.length > 0) {
+            console.log('Primeira linha conciliada:', trsComClasse[0].outerHTML.substring(0, 100));
+            const estilo = window.getComputedStyle(trsComClasse[0]);
+            console.log('Cor de fundo computada:', estilo.backgroundColor);
+        }
     } catch (err) {
         console.error('Erro ao carregar lançamentos:', err);
         const listEl = document.getElementById('lancamentos-list');
@@ -4900,12 +4898,27 @@ function limparFiltrosConciliacao() {
 function displayConciliacao() {
     document.getElementById('area-conciliacao').style.display = 'block';
     
+    // Criar set de FITIDs já salvos no banco
+    const fitidsSalvosNoBanco = new Set();
+    if (window.conciliacoesBanco && window.conciliacoesBanco.length > 0) {
+        window.conciliacoesBanco.forEach(c => {
+            if (c.fitid) fitidsSalvosNoBanco.add(c.fitid);
+        });
+    }
+    
     // Exibir extrato filtrado
     let htmlExtrato = '';
     let contadorFiltrado = 0;
     
     transacoesConciliacaoFiltradas.forEach((t) => {
         const index = transacoesConciliacao.indexOf(t);
+        
+        // Verificar se já foi salvo no banco
+        const jaSalvoNoBanco = t.fitid && fitidsSalvosNoBanco.has(t.fitid);
+        if (jaSalvoNoBanco) {
+            return; // Pular este extrato
+        }
+        
         const conciliado = Array.from(conciliacoesMapa.values()).some(c => c.extratosIndices && c.extratosIndices.includes(index));
         const selecionado = extratosSelecionados.has(index);
         let classes = '';
