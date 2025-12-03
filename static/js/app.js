@@ -179,10 +179,6 @@ async function showPage(page) {
             app.innerHTML = getImportarOFXHTML();
             await initImportarOFX();
             break;
-        case 'conciliacao':
-            app.innerHTML = getConciliacaoHTML();
-            await initConciliacao();
-            break;
         case 'ajuda':
             app.innerHTML = getAjudaHTML();
             break;
@@ -781,11 +777,6 @@ function getNavbar(activePage) {
                         <li class="nav-item">
                             <a class="nav-link ${activePage === 'importar_ofx' ? 'active' : ''}" href="#" onclick="showPage('importar_ofx')">
                                 <i class="bi bi-file-earmark-arrow-up"></i> Importar OFX
-                            </a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link ${activePage === 'conciliacao' ? 'active' : ''}" href="#" onclick="showPage('conciliacao')">
-                                <i class="bi bi-check2-square"></i> Conciliação
                             </a>
                         </li>
                         <li class="nav-item">
@@ -2110,21 +2101,6 @@ async function loadLancamentos() {
         
         console.log('Lançamentos carregados:', data?.length || 0);
         
-        // Buscar conciliações para marcar lançamentos conciliados
-        const { data: conciliacoes, error: conciliacoesError } = await supabase
-            .from('conciliacoes')
-            .select('lancamento_id')
-            .eq('usuario_id', currentUser.id);
-        
-        if (conciliacoesError) {
-            console.error('Erro ao buscar conciliações:', conciliacoesError);
-        }
-        
-        console.log('Conciliações encontradas:', conciliacoes?.length || 0, conciliacoes);
-        
-        const lancamentosConciliados = new Set((conciliacoes || []).map(c => c.lancamento_id));
-        console.log('IDs de lançamentos conciliados:', Array.from(lancamentosConciliados));
-        
         const listEl = document.getElementById('lancamentos-list');
         
         // Se o elemento não existe (ex: não estamos na página de lançamentos), sair
@@ -2158,14 +2134,8 @@ async function loadLancamentos() {
             const descricaoBase = lanc.descricao.split(' (')[0]; // Remove info de parcela da descrição
             const parcelaDisplay = lanc.parcela_atual && lanc.total_parcelas ? lanc.parcela_atual + '/' + lanc.total_parcelas : '-';
             const isQuitacao = lanc.descricao.includes('Quitação');
-            const isConciliado = lancamentosConciliados.has(lanc.id);
             
-            if (isConciliado) {
-                console.log('Lançamento conciliado ID:', lanc.id, 'Descrição:', lanc.descricao);
-                html += '<tr class="lancamento-conciliado" style="background-color: rgba(25, 135, 84, 0.15) !important;">';
-            } else {
-                html += '<tr>';
-            }
+            html += '<tr>';
             html += '<td>' + formatDate(lanc.data) + '</td>';
             html += '<td>' + lanc.descricao + '</td>';
             html += '<td><span class="badge bg-secondary">' + (lanc.categorias ? lanc.categorias.nome : '-') + '</span></td>';
@@ -2198,16 +2168,6 @@ async function loadLancamentos() {
         
         html += '</tbody></table></div>';
         listEl.innerHTML = html;
-        
-        // Verificar se as classes foram aplicadas
-        const trsComClasse = listEl.querySelectorAll('tr.lancamento-conciliado');
-        console.log('Total de linhas conciliadas:', trsComClasse.length);
-        
-        if (trsComClasse.length > 0) {
-            console.log('Primeira linha conciliada:', trsComClasse[0].outerHTML.substring(0, 100));
-            const estilo = window.getComputedStyle(trsComClasse[0]);
-            console.log('Cor de fundo computada:', estilo.backgroundColor);
-        }
     } catch (err) {
         console.error('Erro ao carregar lançamentos:', err);
         const listEl = document.getElementById('lancamentos-list');
@@ -4381,8 +4341,8 @@ async function confirmarImportacaoOFX() {
     const selecionados = transacoesFiltradas.filter(t => t.selecionado);
     
     try {
-        // Buscar lançamentos existentes, IDs OFX já importados e FITIDs conciliados
-        const [lancamentosResult, ofxImportadosResult, conciliacoesResult] = await Promise.all([
+        // Buscar lançamentos existentes e IDs OFX já importados
+        const [lancamentosResult, ofxImportadosResult] = await Promise.all([
             supabase
                 .from('lancamentos')
                 .select('data, descricao, valor')
@@ -4390,21 +4350,14 @@ async function confirmarImportacaoOFX() {
             supabase
                 .from('ofx_importados')
                 .select('fitid')
-                .eq('usuario_id', currentUser.id),
-            supabase
-                .from('conciliacoes')
-                .select('fitid')
                 .eq('usuario_id', currentUser.id)
-                .not('fitid', 'is', null)
         ]);
         
         if (lancamentosResult.error) throw lancamentosResult.error;
         if (ofxImportadosResult.error) throw ofxImportadosResult.error;
-        if (conciliacoesResult.error) throw conciliacoesResult.error;
         
         const lancamentosExistentes = lancamentosResult.data || [];
         const fitidsImportados = new Set((ofxImportadosResult.data || []).map(r => r.fitid));
-        const fitidsConciliados = new Set((conciliacoesResult.data || []).map(r => r.fitid));
         
         let importados = 0;
         let duplicados = 0;
@@ -4415,8 +4368,8 @@ async function confirmarImportacaoOFX() {
         for (let i = 0; i < selecionados.length; i++) {
             const transacao = selecionados[i];
             
-            // Verificar se já foi importado pelo FITID ou se já foi conciliado
-            if (transacao.fitid && (fitidsImportados.has(transacao.fitid) || fitidsConciliados.has(transacao.fitid))) {
+            // Verificar se já foi importado pelo FITID
+            if (transacao.fitid && fitidsImportados.has(transacao.fitid)) {
                 duplicados++;
                 continue;
             }
