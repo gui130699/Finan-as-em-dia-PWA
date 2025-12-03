@@ -4495,6 +4495,7 @@ async function confirmarImportacaoOFX() {
 // ============================================
 
 let transacoesConciliacao = [];
+let transacoesConciliacaoFiltradas = [];
 let lancamentosConciliacao = [];
 let conciliacoesMapa = new Map();
 let extratosSelecionados = new Set();
@@ -4508,15 +4509,28 @@ function getConciliacaoHTML() {
             
             <div class="card mb-4">
                 <div class="card-body">
-                    <h5 class="card-title">Carregar Extrato OFX</h5>
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
+                    <div class="row align-items-end">
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label"><strong>Carregar Extrato OFX</strong></label>
                             <input type="file" class="form-control" id="arquivo-conciliacao" accept=".ofx" onchange="processarArquivoConciliacao(event)">
-                            <small class="text-muted">Selecione o arquivo OFX do banco para conciliar</small>
+                            <small class="text-muted">Selecione o arquivo OFX do banco</small>
                         </div>
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">Mês dos Lançamentos</label>
+                        <div class="col-md-3 mb-3">
+                            <label class="form-label"><strong>Mês dos Lançamentos</strong></label>
                             <input type="month" class="form-control" id="mes-conciliacao" onchange="carregarLancamentosConciliacao()">
+                        </div>
+                        <div class="col-md-2 mb-3">
+                            <label class="form-label"><strong>Data Início</strong></label>
+                            <input type="date" class="form-control" id="data-inicio-conciliacao" onchange="aplicarFiltrosConciliacao()">
+                        </div>
+                        <div class="col-md-2 mb-3">
+                            <label class="form-label"><strong>Data Fim</strong></label>
+                            <input type="date" class="form-control" id="data-fim-conciliacao" onchange="aplicarFiltrosConciliacao()">
+                        </div>
+                        <div class="col-md-1 mb-3">
+                            <button class="btn btn-secondary w-100" onclick="limparFiltrosConciliacao()" title="Limpar Filtros">
+                                <i class="bi bi-x-circle"></i>
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -4601,6 +4615,7 @@ async function initConciliacao() {
     // Se já tinha transações de conciliação, recarregar
     if (transacoesConciliacao.length > 0) {
         await carregarLancamentosConciliacao();
+        aplicarFiltrosConciliacao();
         displayConciliacao();
     }
 }
@@ -4622,6 +4637,7 @@ function processarArquivoConciliacao(event) {
             
             showAlert(transacoesConciliacao.length + ' transações carregadas do extrato!', 'success');
             await carregarLancamentosConciliacao();
+            aplicarFiltrosConciliacao();
             displayConciliacao();
             
         } catch (err) {
@@ -4655,6 +4671,7 @@ async function carregarLancamentosConciliacao() {
         lancamentosConciliacao = data || [];
         
         if (transacoesConciliacao.length > 0) {
+            aplicarFiltrosConciliacao();
             displayConciliacao();
         }
         
@@ -4664,12 +4681,40 @@ async function carregarLancamentosConciliacao() {
     }
 }
 
+function aplicarFiltrosConciliacao() {
+    const dataInicio = document.getElementById('data-inicio-conciliacao').value;
+    const dataFim = document.getElementById('data-fim-conciliacao').value;
+    
+    if (!dataInicio && !dataFim) {
+        transacoesConciliacaoFiltradas = [...transacoesConciliacao];
+    } else {
+        transacoesConciliacaoFiltradas = transacoesConciliacao.filter(t => {
+            if (dataInicio && t.data < dataInicio) return false;
+            if (dataFim && t.data > dataFim) return false;
+            return true;
+        });
+    }
+    
+    if (transacoesConciliacao.length > 0) {
+        displayConciliacao();
+    }
+}
+
+function limparFiltrosConciliacao() {
+    document.getElementById('data-inicio-conciliacao').value = '';
+    document.getElementById('data-fim-conciliacao').value = '';
+    aplicarFiltrosConciliacao();
+}
+
 function displayConciliacao() {
     document.getElementById('area-conciliacao').style.display = 'block';
     
-    // Exibir extrato
+    // Exibir extrato filtrado
     let htmlExtrato = '';
-    transacoesConciliacao.forEach((t, index) => {
+    let contadorFiltrado = 0;
+    
+    transacoesConciliacaoFiltradas.forEach((t) => {
+        const index = transacoesConciliacao.indexOf(t);
         const conciliado = Array.from(conciliacoesMapa.values()).some(c => c.extratosIndices && c.extratosIndices.includes(index));
         const selecionado = extratosSelecionados.has(index);
         let classes = '';
@@ -4700,8 +4745,16 @@ function displayConciliacao() {
             htmlExtrato += '<button class="btn btn-sm btn-outline-primary" onclick="selecionarExtrato(' + index + ')">Selecionar</button>';
         }
         htmlExtrato += '</div></div></div></div>';
+        contadorFiltrado++;
     });
-    document.getElementById('lista-extrato-conciliacao').innerHTML = htmlExtrato || '<p class="text-muted">Nenhuma transação no extrato</p>';
+    
+    if (contadorFiltrado === 0) {
+        htmlExtrato = '<p class="text-muted">Nenhuma transação no período filtrado</p>';
+    } else if (contadorFiltrado < transacoesConciliacao.length) {
+        htmlExtrato = '<div class="alert alert-info">Mostrando ' + contadorFiltrado + ' de ' + transacoesConciliacao.length + ' transações</div>' + htmlExtrato;
+    }
+    
+    document.getElementById('lista-extrato-conciliacao').innerHTML = htmlExtrato;
     
     // Atualizar contador de selecionados
     document.getElementById('contador-extrato-selecionado').textContent = extratosSelecionados.size + ' selecionados';
