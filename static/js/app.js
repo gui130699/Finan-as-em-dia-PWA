@@ -1122,34 +1122,39 @@ async function loadAvisosVencimento(lancamentos, saldoAtual, despesasPendentes, 
             // Vencidas
             if (vencidas.length > 0) {
                 avisosHTML += `
-                    <div class="col-md-6 mb-3">
+                    <div class="col-12 mb-3">
                         <div class="card border-danger">
-                            <div class="card-header bg-danger text-white">
-                                <strong><i class="bi bi-exclamation-triangle"></i> VENCIDAS (${vencidas.length})</strong>
+                            <div class="card-header bg-danger text-white" style="cursor: pointer;" data-bs-toggle="collapse" data-bs-target="#collapseVencidas">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <strong><i class="bi bi-chevron-right me-2"></i><i class="bi bi-exclamation-triangle"></i> VENCIDAS</strong>
+                                    <span class="badge bg-light text-danger">${vencidas.length} ${vencidas.length === 1 ? 'conta' : 'contas'}</span>
+                                </div>
                             </div>
-                            <div class="card-body p-2">
-                                <div class="list-group list-group-flush">
-                                    ${vencidas.map(c => `
-                                        <div class="list-group-item list-group-item-danger">
-                                            <div class="d-flex justify-content-between align-items-start mb-2">
-                                                <div>
-                                                    <strong>${c.descricao}</strong>
-                                                    <br><small>${c.categorias?.nome || 'Sem categoria'} | ${formatarData(c.data)}</small>
+                            <div id="collapseVencidas" class="collapse">
+                                <div class="card-body p-2">
+                                    <div class="list-group list-group-flush">
+                                        ${vencidas.map(c => `
+                                            <div class="list-group-item list-group-item-danger">
+                                                <div class="d-flex justify-content-between align-items-start mb-2">
+                                                    <div>
+                                                        <strong>${c.descricao}</strong>
+                                                        <br><small>${c.categorias?.nome || 'Sem categoria'} | ${formatarData(c.data)}</small>
+                                                    </div>
+                                                    <div class="text-end">
+                                                        <strong class="text-danger">R$ ${parseFloat(c.valor).toFixed(2)}</strong>
+                                                    </div>
                                                 </div>
-                                                <div class="text-end">
-                                                    <strong class="text-danger">R$ ${parseFloat(c.valor).toFixed(2)}</strong>
+                                                <div class="d-flex gap-2">
+                                                    <button class="btn btn-success btn-sm flex-fill" onclick="pagarLancamento(${c.id})">
+                                                        <i class="bi bi-check-circle"></i> Pagar
+                                                    </button>
+                                                    <button class="btn btn-warning btn-sm flex-fill" onclick="adiarLancamento(${c.id}, '${c.descricao}', '${c.data}')">
+                                                        <i class="bi bi-calendar-plus"></i> Adiar
+                                                    </button>
                                                 </div>
                                             </div>
-                                            <div class="d-flex gap-2">
-                                                <button class="btn btn-success btn-sm flex-fill" onclick="pagarLancamento(${c.id})">
-                                                    <i class="bi bi-check-circle"></i> Pagar
-                                                </button>
-                                                <button class="btn btn-warning btn-sm flex-fill" onclick="adiarLancamento(${c.id}, '${c.descricao}', '${c.data}')">
-                                                    <i class="bi bi-calendar-plus"></i> Adiar
-                                                </button>
-                                            </div>
-                                        </div>
-                                    `).join('')}
+                                        `).join('')}
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -1190,32 +1195,37 @@ async function loadAvisosVencimento(lancamentos, saldoAtual, despesasPendentes, 
             // Próximos 3 dias
             if (vencem3Dias.length > 0) {
                 avisosHTML += `
-                    <div class="col-md-6 mb-3">
+                    <div class="col-12 mb-3">
                         <div class="card border-warning">
-                            <div class="card-header" style="background-color: #fff3cd;">
-                                <strong><i class="bi bi-clock"></i> Próximos 3 Dias (${vencem3Dias.length})</strong>
+                            <div class="card-header" style="background-color: #fff3cd; cursor: pointer;" data-bs-toggle="collapse" data-bs-target="#collapse3Dias">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <strong><i class="bi bi-chevron-right me-2"></i><i class="bi bi-clock"></i> Próximos 3 Dias</strong>
+                                    <span class="badge bg-warning text-dark">${vencem3Dias.length} ${vencem3Dias.length === 1 ? 'conta' : 'contas'}</span>
+                                </div>
                             </div>
-                            <div class="card-body p-2">
-                                <div class="list-group list-group-flush">
-                                    ${vencem3Dias.map(c => `
-                                        <div class="list-group-item">
-                                            <div class="d-flex justify-content-between align-items-start mb-2">
-                                                <div>
-                                                    <strong>${c.descricao}</strong>
-                                                    <br><small>${formatarData(c.data)}</small>
+                            <div id="collapse3Dias" class="collapse">
+                                <div class="card-body p-2">
+                                    <div class="list-group list-group-flush">
+                                        ${vencem3Dias.map(c => `
+                                            <div class="list-group-item">
+                                                <div class="d-flex justify-content-between align-items-start mb-2">
+                                                    <div>
+                                                        <strong>${c.descricao}</strong>
+                                                        <br><small>${formatarData(c.data)}</small>
+                                                    </div>
+                                                    <strong>R$ ${parseFloat(c.valor).toFixed(2)}</strong>
                                                 </div>
-                                                <strong>R$ ${parseFloat(c.valor).toFixed(2)}</strong>
+                                                <div class="d-flex gap-2">
+                                                    <button class="btn btn-success btn-sm flex-fill" onclick="pagarLancamento(${c.id})">
+                                                        <i class="bi bi-check-circle"></i> Pagar
+                                                    </button>
+                                                    <button class="btn btn-warning btn-sm flex-fill" onclick="adiarLancamento(${c.id}, '${c.descricao}', '${c.data}')">
+                                                        <i class="bi bi-calendar-plus"></i> Adiar
+                                                    </button>
+                                                </div>
                                             </div>
-                                            <div class="d-flex gap-2">
-                                                <button class="btn btn-success btn-sm flex-fill" onclick="pagarLancamento(${c.id})">
-                                                    <i class="bi bi-check-circle"></i> Pagar
-                                                </button>
-                                                <button class="btn btn-warning btn-sm flex-fill" onclick="adiarLancamento(${c.id}, '${c.descricao}', '${c.data}')">
-                                                    <i class="bi bi-calendar-plus"></i> Adiar
-                                                </button>
-                                            </div>
-                                        </div>
-                                    `).join('')}
+                                        `).join('')}
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -1226,32 +1236,37 @@ async function loadAvisosVencimento(lancamentos, saldoAtual, despesasPendentes, 
             // Próximos 7 dias
             if (vencem7Dias.length > 0) {
                 avisosHTML += `
-                    <div class="col-md-6 mb-3">
+                    <div class="col-12 mb-3">
                         <div class="card border-info">
-                            <div class="card-header bg-light">
-                                <strong><i class="bi bi-calendar-week"></i> Próximos 7 Dias (${vencem7Dias.length})</strong>
+                            <div class="card-header bg-light" style="cursor: pointer;" data-bs-toggle="collapse" data-bs-target="#collapse7Dias">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <strong><i class="bi bi-chevron-right me-2"></i><i class="bi bi-calendar-week"></i> Próximos 7 Dias</strong>
+                                    <span class="badge bg-info text-dark">${vencem7Dias.length} ${vencem7Dias.length === 1 ? 'conta' : 'contas'}</span>
+                                </div>
                             </div>
-                            <div class="card-body p-2">
-                                <div class="list-group list-group-flush">
-                                    ${vencem7Dias.map(c => `
-                                        <div class="list-group-item">
-                                            <div class="d-flex justify-content-between align-items-start mb-2">
-                                                <div>
-                                                    <strong>${c.descricao}</strong>
-                                                    <br><small>${formatarData(c.data)}</small>
+                            <div id="collapse7Dias" class="collapse">
+                                <div class="card-body p-2">
+                                    <div class="list-group list-group-flush">
+                                        ${vencem7Dias.map(c => `
+                                            <div class="list-group-item">
+                                                <div class="d-flex justify-content-between align-items-start mb-2">
+                                                    <div>
+                                                        <strong>${c.descricao}</strong>
+                                                        <br><small>${formatarData(c.data)}</small>
+                                                    </div>
+                                                    <strong>R$ ${parseFloat(c.valor).toFixed(2)}</strong>
                                                 </div>
-                                                <strong>R$ ${parseFloat(c.valor).toFixed(2)}</strong>
+                                                <div class="d-flex gap-2">
+                                                    <button class="btn btn-success btn-sm flex-fill" onclick="pagarLancamento(${c.id})">
+                                                        <i class="bi bi-check-circle"></i> Pagar
+                                                    </button>
+                                                    <button class="btn btn-warning btn-sm flex-fill" onclick="adiarLancamento(${c.id}, '${c.descricao}', '${c.data}')">
+                                                        <i class="bi bi-calendar-plus"></i> Adiar
+                                                    </button>
+                                                </div>
                                             </div>
-                                            <div class="d-flex gap-2">
-                                                <button class="btn btn-success btn-sm flex-fill" onclick="pagarLancamento(${c.id})">
-                                                    <i class="bi bi-check-circle"></i> Pagar
-                                                </button>
-                                                <button class="btn btn-warning btn-sm flex-fill" onclick="adiarLancamento(${c.id}, '${c.descricao}', '${c.data}')">
-                                                    <i class="bi bi-calendar-plus"></i> Adiar
-                                                </button>
-                                            </div>
-                                        </div>
-                                    `).join('')}
+                                        `).join('')}
+                                    </div>
                                 </div>
                             </div>
                         </div>
