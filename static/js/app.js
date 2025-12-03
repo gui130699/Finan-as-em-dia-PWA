@@ -4756,8 +4756,20 @@ function displayConciliacao() {
     
     document.getElementById('lista-extrato-conciliacao').innerHTML = htmlExtrato;
     
-    // Atualizar contador de selecionados
-    document.getElementById('contador-extrato-selecionado').textContent = extratosSelecionados.size + ' selecionados';
+    // Atualizar contador de selecionados com valor total
+    let somaExtratos = 0;
+    extratosSelecionados.forEach(index => {
+        const transacao = transacoesConciliacao[index];
+        if (transacao) {
+            somaExtratos += transacao.tipo === 'CREDIT' ? transacao.valor : -transacao.valor;
+        }
+    });
+    
+    let textoContador = extratosSelecionados.size + ' selecionados';
+    if (extratosSelecionados.size > 0) {
+        textoContador += ' (R$ ' + Math.abs(somaExtratos).toFixed(2) + ')';
+    }
+    document.getElementById('contador-extrato-selecionado').textContent = textoContador;
     
     // Exibir lançamentos
     let htmlLancamentos = '';
@@ -4814,12 +4826,45 @@ function selecionarLancamento(id) {
 function conciliar() {
     if (extratosSelecionados.size === 0 || lancamentoSelecionado === null) return;
     
+    // Buscar lançamento
+    const lancamento = lancamentosConciliacao.find(l => l.id === lancamentoSelecionado);
+    if (!lancamento) {
+        showAlert('Lançamento não encontrado!', 'danger');
+        return;
+    }
+    
+    // Calcular soma dos extratos selecionados
+    let somaExtratos = 0;
+    const extratosArray = Array.from(extratosSelecionados);
+    
+    extratosArray.forEach(index => {
+        const transacao = transacoesConciliacao[index];
+        if (transacao) {
+            // Crédito = positivo, Débito = negativo
+            somaExtratos += transacao.tipo === 'CREDIT' ? transacao.valor : -transacao.valor;
+        }
+    });
+    
+    // Validar se os valores batem (com tolerância de 0.01 para arredondamento)
+    const valorLancamento = parseFloat(lancamento.valor);
+    const valorLancamentoComSinal = lancamento.tipo === 'receita' ? valorLancamento : -valorLancamento;
+    
+    if (Math.abs(somaExtratos - valorLancamentoComSinal) > 0.01) {
+        const mensagem = 'Valores não conferem!\n\n' +
+            'Lançamento: R$ ' + valorLancamento.toFixed(2) + ' (' + (lancamento.tipo === 'receita' ? 'Receita' : 'Despesa') + ')\n' +
+            'Soma dos extratos selecionados: R$ ' + Math.abs(somaExtratos).toFixed(2) + '\n' +
+            'Diferença: R$ ' + Math.abs(Math.abs(somaExtratos) - valorLancamento).toFixed(2);
+        
+        showAlert(mensagem, 'warning');
+        return;
+    }
+    
     // Criar chave única para a conciliação
-    const extratosArray = Array.from(extratosSelecionados).sort();
-    const chave = 'L' + lancamentoSelecionado + '-E' + extratosArray.join(',');
+    const extratosArraySorted = extratosArray.sort();
+    const chave = 'L' + lancamentoSelecionado + '-E' + extratosArraySorted.join(',');
     
     conciliacoesMapa.set(chave, {
-        extratosIndices: extratosArray,
+        extratosIndices: extratosArraySorted,
         lancamentoId: lancamentoSelecionado
     });
     
@@ -4827,6 +4872,7 @@ function conciliar() {
     extratosSelecionados.clear();
     lancamentoSelecionado = null;
     
+    showAlert('Conciliação realizada com sucesso!', 'success');
     displayConciliacao();
 }
 
