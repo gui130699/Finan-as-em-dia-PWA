@@ -2094,12 +2094,27 @@ async function loadLancamentos() {
         
         const { data, error } = await query;
         
+        if (error) throw error;
+        
+        // Buscar lançamentos que estão agrupados (para ocultar da lista)
+        const { data: agrupados, error: errorAgrupados } = await supabase
+            .from('lancamentos_agrupados')
+            .select('lancamento_id');
+        
+        if (errorAgrupados) throw errorAgrupados;
+        
+        const idsAgrupados = new Set(agrupados.map(a => a.lancamento_id));
+        
+        // Filtrar lançamentos que estão agrupados
+        const lancamentosVisiveis = data.filter(l => !idsAgrupados.has(l.id));
+        
         if (error) {
             console.error('Erro ao buscar lançamentos:', error);
             throw error;
         }
         
         console.log('Lançamentos carregados:', data?.length || 0);
+        console.log('Lançamentos visíveis:', lancamentosVisiveis?.length || 0);
         
         const listEl = document.getElementById('lancamentos-list');
         
@@ -2109,14 +2124,21 @@ async function loadLancamentos() {
             return;
         }
         
-        if (data.length === 0) {
+        if (lancamentosVisiveis.length === 0) {
             listEl.innerHTML = '<div class="alert alert-info"><i class="bi bi-info-circle"></i> Nenhum lançamento encontrado.</div>';
             return;
         }
         
-        let html = '<div class="table-responsive">';
+        let html = '<div class="mb-3">';
+        html += '<button class="btn btn-success" onclick="agruparLancamentosSelecionados()" id="btn-agrupar" style="display:none;">';
+        html += '<i class="bi bi-collection"></i> Agrupar Selecionados';
+        html += '</button>';
+        html += '<span id="contador-selecionados" class="ms-2 text-muted"></span>';
+        html += '</div>';
+        html += '<div class="table-responsive">';
         html += '<table class="table table-hover">';
         html += '<thead><tr>';
+        html += '<th><input type="checkbox" id="select-all-lancamentos" onchange="toggleSelectAllLancamentos(this.checked)"></th>';
         html += '<th>Data</th>';
         html += '<th>Descrição</th>';
         html += '<th>Categoria</th>';
@@ -2128,14 +2150,16 @@ async function loadLancamentos() {
         html += '</tr></thead>';
         html += '<tbody>';
         
-        data.forEach(lanc => {
+        lancamentosVisiveis.forEach(lanc => {
             const valor = parseFloat(lanc.valor).toFixed(2);
             const classeValor = lanc.tipo === 'receita' ? 'text-success' : 'text-danger';
             const descricaoBase = lanc.descricao.split(' (')[0]; // Remove info de parcela da descrição
             const parcelaDisplay = lanc.parcela_atual && lanc.total_parcelas ? lanc.parcela_atual + '/' + lanc.total_parcelas : '-';
             const isQuitacao = lanc.descricao.includes('Quitação');
+            const isGrupo = lanc.is_grupo === true;
             
             html += '<tr>';
+            html += '<td><input type="checkbox" class="lancamento-checkbox" value="' + lanc.id + '" data-categoria="' + (lanc.categoria_id || '') + '" onchange="atualizarSelecaoLancamentos()"></td>';
             html += '<td>' + formatDate(lanc.data) + '</td>';
             html += '<td>' + lanc.descricao + '</td>';
             html += '<td><span class="badge bg-secondary">' + (lanc.categorias ? lanc.categorias.nome : '-') + '</span></td>';
@@ -2146,20 +2170,27 @@ async function loadLancamentos() {
             html += '<span class="badge ' + (lanc.status === 'pago' ? 'bg-success' : 'bg-warning') + '">' + (lanc.status === 'pago' ? 'Pago' : 'Pendente') + '</span>';
             html += '</td>';
             html += '<td>';
+            if (isGrupo) {
+                html += '<button class="btn btn-sm btn-info" onclick="verDetalhesGrupo(' + lanc.id + ')" title="Ver Lançamentos Agrupados">';
+                html += '<i class="bi bi-box-arrow-up-right"></i>';
+                html += '</button>';
+            }
             if (isQuitacao) {
                 html += '<button class="btn btn-sm btn-info" onclick="verDetalhesQuitacao(' + lanc.id + ')" title="Ver Detalhes da Quitação">';
                 html += '<i class="bi bi-info-circle"></i>';
                 html += '</button>';
             }
-            html += '<button class="btn btn-sm ' + (lanc.status === 'pago' ? 'btn-success' : 'btn-warning') + '" ';
-            html += 'onclick="toggleStatus(' + lanc.id + ', \'' + lanc.status + '\')" ';
-            html += 'title="' + (lanc.status === 'pago' ? 'Marcar como Pendente' : 'Marcar como Pago') + '">';
-            html += '<i class="bi bi-' + (lanc.status === 'pago' ? 'arrow-counterclockwise' : 'check-circle') + '"></i>';
-            html += '</button>';
-            html += '<button class="btn btn-sm btn-primary" onclick="editarLancamento(' + lanc.id + ')" title="Editar">';
-            html += '<i class="bi bi-pencil"></i>';
-            html += '</button>';
-            html += '<button class="btn btn-sm btn-danger" onclick="deleteLancamento(' + lanc.id + ')" title="Excluir">';
+            if (!isGrupo) {
+                html += '<button class="btn btn-sm ' + (lanc.status === 'pago' ? 'btn-success' : 'btn-warning') + '" ';
+                html += 'onclick="toggleStatus(' + lanc.id + ', \'' + lanc.status + '\')" ';
+                html += 'title="' + (lanc.status === 'pago' ? 'Marcar como Pendente' : 'Marcar como Pago') + '">';
+                html += '<i class="bi bi-' + (lanc.status === 'pago' ? 'arrow-counterclockwise' : 'check-circle') + '"></i>';
+                html += '</button>';
+                html += '<button class="btn btn-sm btn-primary" onclick="editarLancamento(' + lanc.id + ')" title="Editar">';
+                html += '<i class="bi bi-pencil"></i>';
+                html += '</button>';
+            }
+            html += '<button class="btn btn-sm btn-danger" onclick="' + (isGrupo ? 'desagrupar(' : 'deleteLancamento(') + lanc.id + ')" title="' + (isGrupo ? 'Desagrupar' : 'Excluir') + '">';
             html += '<i class="bi bi-trash"></i>';
             html += '</button>';
             html += '</td>';
@@ -5314,6 +5345,253 @@ function showAlert(message, type = 'info') {
     }, 5000);
 }
 
+// ============================================
+// AGRUPAMENTO DE LANÇAMENTOS
+// ============================================
+
+function toggleSelectAllLancamentos(checked) {
+    const checkboxes = document.querySelectorAll('.lancamento-checkbox');
+    checkboxes.forEach(cb => {
+        cb.checked = checked;
+    });
+    atualizarSelecaoLancamentos();
+}
+
+function atualizarSelecaoLancamentos() {
+    const checkboxes = document.querySelectorAll('.lancamento-checkbox:checked');
+    const btnAgrupar = document.getElementById('btn-agrupar');
+    const contador = document.getElementById('contador-selecionados');
+    const selectAll = document.getElementById('select-all-lancamentos');
+    
+    const qtd = checkboxes.length;
+    
+    if (qtd >= 2) {
+        btnAgrupar.style.display = 'inline-block';
+        contador.textContent = qtd + ' lançamentos selecionados';
+    } else {
+        btnAgrupar.style.display = 'none';
+        contador.textContent = '';
+    }
+    
+    // Atualizar estado do select all
+    const totalCheckboxes = document.querySelectorAll('.lancamento-checkbox').length;
+    selectAll.checked = qtd === totalCheckboxes && totalCheckboxes > 0;
+}
+
+async function agruparLancamentosSelecionados() {
+    const checkboxes = document.querySelectorAll('.lancamento-checkbox:checked');
+    
+    if (checkboxes.length < 2) {
+        showAlert('Selecione pelo menos 2 lançamentos para agrupar', 'warning');
+        return;
+    }
+    
+    // Verificar se todos são da mesma categoria
+    const categorias = new Set();
+    const ids = [];
+    
+    checkboxes.forEach(cb => {
+        const categoria = cb.getAttribute('data-categoria');
+        categorias.add(categoria);
+        ids.push(parseInt(cb.value));
+    });
+    
+    if (categorias.size > 1) {
+        showAlert('Todos os lançamentos devem ser da mesma categoria', 'warning');
+        return;
+    }
+    
+    // Pedir descrição do grupo
+    const descricao = prompt('Digite uma descrição para o agrupamento:');
+    if (!descricao || descricao.trim() === '') {
+        showAlert('Descrição é obrigatória', 'warning');
+        return;
+    }
+    
+    try {
+        // Buscar dados dos lançamentos selecionados
+        const { data: lancamentos, error: errorLanc } = await supabase
+            .from('lancamentos')
+            .select('*')
+            .in('id', ids);
+        
+        if (errorLanc) throw errorLanc;
+        
+        // Calcular valor total
+        let valorTotal = 0;
+        lancamentos.forEach(l => {
+            valorTotal += l.tipo === 'receita' ? l.valor : -l.valor;
+        });
+        
+        const tipo = valorTotal >= 0 ? 'receita' : 'despesa';
+        valorTotal = Math.abs(valorTotal);
+        
+        // Criar lançamento agrupado
+        const { data: grupoData, error: errorGrupo } = await supabase
+            .from('lancamentos')
+            .insert({
+                usuario_id: user.id,
+                tipo: tipo,
+                descricao: '📦 ' + descricao,
+                valor: valorTotal,
+                data: new Date().toISOString().split('T')[0],
+                categoria_id: lancamentos[0].categoria_id,
+                status: 'pago',
+                is_grupo: true
+            })
+            .select()
+            .single();
+        
+        if (errorGrupo) throw errorGrupo;
+        
+        // Criar registros de agrupamento
+        const registrosAgrupamento = ids.map(id => ({
+            grupo_id: grupoData.id,
+            lancamento_id: id
+        }));
+        
+        const { error: errorInsert } = await supabase
+            .from('lancamentos_agrupados')
+            .insert(registrosAgrupamento);
+        
+        if (errorInsert) throw errorInsert;
+        
+        showAlert('Lançamentos agrupados com sucesso!', 'success');
+        await loadLancamentos();
+        
+    } catch (err) {
+        console.error('Erro ao agrupar lançamentos:', err);
+        showAlert('Erro ao agrupar lançamentos: ' + err.message, 'danger');
+    }
+}
+
+async function verDetalhesGrupo(grupoId) {
+    try {
+        // Buscar lançamentos do grupo
+        const { data: agrupados, error: errorAgrupados } = await supabase
+            .from('lancamentos_agrupados')
+            .select('lancamento_id')
+            .eq('grupo_id', grupoId);
+        
+        if (errorAgrupados) throw errorAgrupados;
+        
+        const ids = agrupados.map(a => a.lancamento_id);
+        
+        const { data: lancamentos, error: errorLanc } = await supabase
+            .from('lancamentos')
+            .select('*, categorias(nome)')
+            .in('id', ids)
+            .order('data', { ascending: false });
+        
+        if (errorLanc) throw errorLanc;
+        
+        // Buscar dados do grupo
+        const { data: grupo, error: errorGrupo } = await supabase
+            .from('lancamentos')
+            .select('*, categorias(nome)')
+            .eq('id', grupoId)
+            .single();
+        
+        if (errorGrupo) throw errorGrupo;
+        
+        // Montar modal
+        let html = '<div class="modal fade" id="modal-grupo" tabindex="-1">';
+        html += '<div class="modal-dialog modal-lg">';
+        html += '<div class="modal-content">';
+        html += '<div class="modal-header">';
+        html += '<h5 class="modal-title">Detalhes do Agrupamento</h5>';
+        html += '<button type="button" class="btn-close" onclick="fecharModalGrupo()"></button>';
+        html += '</div>';
+        html += '<div class="modal-body">';
+        html += '<div class="alert alert-info">';
+        html += '<strong>Descrição:</strong> ' + grupo.descricao + '<br>';
+        html += '<strong>Valor Total:</strong> R$ ' + parseFloat(grupo.valor).toFixed(2) + '<br>';
+        html += '<strong>Categoria:</strong> ' + (grupo.categorias ? grupo.categorias.nome : '-');
+        html += '</div>';
+        html += '<h6>Lançamentos Agrupados (' + lancamentos.length + '):</h6>';
+        html += '<div class="table-responsive">';
+        html += '<table class="table table-sm">';
+        html += '<thead><tr>';
+        html += '<th>Data</th>';
+        html += '<th>Descrição</th>';
+        html += '<th>Valor</th>';
+        html += '<th>Tipo</th>';
+        html += '</tr></thead>';
+        html += '<tbody>';
+        
+        lancamentos.forEach(l => {
+            const classeValor = l.tipo === 'receita' ? 'text-success' : 'text-danger';
+            html += '<tr>';
+            html += '<td>' + formatDate(l.data) + '</td>';
+            html += '<td>' + l.descricao + '</td>';
+            html += '<td class="' + classeValor + '">R$ ' + parseFloat(l.valor).toFixed(2) + '</td>';
+            html += '<td><span class="badge ' + (l.tipo === 'receita' ? 'bg-success' : 'bg-danger') + '">' + l.tipo + '</span></td>';
+            html += '</tr>';
+        });
+        
+        html += '</tbody></table>';
+        html += '</div>';
+        html += '</div>';
+        html += '<div class="modal-footer">';
+        html += '<button type="button" class="btn btn-secondary" onclick="fecharModalGrupo()">Fechar</button>';
+        html += '</div>';
+        html += '</div>';
+        html += '</div>';
+        html += '</div>';
+        
+        // Remover modal anterior se existir
+        const modalExistente = document.getElementById('modal-grupo');
+        if (modalExistente) modalExistente.remove();
+        
+        // Adicionar modal ao DOM
+        document.body.insertAdjacentHTML('beforeend', html);
+        
+        // Mostrar modal
+        const modal = new bootstrap.Modal(document.getElementById('modal-grupo'));
+        modal.show();
+        
+    } catch (err) {
+        console.error('Erro ao ver detalhes do grupo:', err);
+        showAlert('Erro ao carregar detalhes do grupo: ' + err.message, 'danger');
+    }
+}
+
+function fecharModalGrupo() {
+    const modal = bootstrap.Modal.getInstance(document.getElementById('modal-grupo'));
+    if (modal) modal.hide();
+}
+
+async function desagrupar(grupoId) {
+    if (!confirm('Deseja desagrupar estes lançamentos? Eles voltarão a aparecer individualmente.')) {
+        return;
+    }
+    
+    try {
+        // Deletar registros de agrupamento
+        const { error: errorAgrupados } = await supabase
+            .from('lancamentos_agrupados')
+            .delete()
+            .eq('grupo_id', grupoId);
+        
+        if (errorAgrupados) throw errorAgrupados;
+        
+        // Deletar o lançamento de grupo
+        const { error: errorGrupo } = await supabase
+            .from('lancamentos')
+            .delete()
+            .eq('id', grupoId);
+        
+        if (errorGrupo) throw errorGrupo;
+        
+        showAlert('Lançamentos desagrupados com sucesso!', 'success');
+        await loadLancamentos();
+        
+    } catch (err) {
+        console.error('Erro ao desagrupar:', err);
+        showAlert('Erro ao desagrupar lançamentos: ' + err.message, 'danger');
+    }
+}
+
 // Expor funções globalmente
 window.showPage = showPage;
 window.logout = logout;
@@ -5339,3 +5617,9 @@ window.confirmarSelecaoParcelas = confirmarSelecaoParcelas;
 window.fecharModalDesconto = fecharModalDesconto;
 window.processarQuitacaoParcial = processarQuitacaoParcial;
 window.gerarRelatorio = gerarRelatorio;
+window.toggleSelectAllLancamentos = toggleSelectAllLancamentos;
+window.atualizarSelecaoLancamentos = atualizarSelecaoLancamentos;
+window.agruparLancamentosSelecionados = agruparLancamentosSelecionados;
+window.verDetalhesGrupo = verDetalhesGrupo;
+window.desagrupar = desagrupar;
+window.fecharModalGrupo = fecharModalGrupo;

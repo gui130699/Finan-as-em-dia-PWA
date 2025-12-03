@@ -221,6 +221,41 @@ CREATE POLICY conciliacoes_policy ON conciliacoes
     USING (usuario_id = current_setting('app.current_user_id', TRUE)::INTEGER);
 
 -- ============================================
+-- TABELA DE AGRUPAMENTO DE LANÇAMENTOS
+-- ============================================
+
+CREATE TABLE IF NOT EXISTS lancamentos_agrupados (
+    id SERIAL PRIMARY KEY,
+    grupo_id INTEGER NOT NULL,
+    lancamento_id INTEGER NOT NULL,
+    data_agrupamento TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    
+    FOREIGN KEY (grupo_id) REFERENCES lancamentos(id) ON DELETE CASCADE,
+    FOREIGN KEY (lancamento_id) REFERENCES lancamentos(id) ON DELETE CASCADE,
+    UNIQUE(grupo_id, lancamento_id)
+);
+
+-- Índices para otimização
+CREATE INDEX IF NOT EXISTS idx_lancamentos_agrupados_grupo ON lancamentos_agrupados(grupo_id);
+CREATE INDEX IF NOT EXISTS idx_lancamentos_agrupados_lancamento ON lancamentos_agrupados(lancamento_id);
+
+-- Adicionar coluna is_grupo na tabela lancamentos
+ALTER TABLE lancamentos ADD COLUMN IF NOT EXISTS is_grupo BOOLEAN DEFAULT FALSE;
+
+-- Política RLS para lancamentos_agrupados
+ALTER TABLE lancamentos_agrupados ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY lancamentos_agrupados_policy ON lancamentos_agrupados
+    FOR ALL
+    USING (
+        EXISTS (
+            SELECT 1 FROM lancamentos 
+            WHERE lancamentos.id = lancamentos_agrupados.grupo_id 
+            AND lancamentos.usuario_id = current_setting('app.current_user_id', TRUE)::INTEGER
+        )
+    );
+
+-- ============================================
 -- FIM DO SCRIPT
 -- ============================================
 
