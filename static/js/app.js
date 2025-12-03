@@ -2167,41 +2167,41 @@ async function loadLancamentos() {
             const parcelaDisplay = lanc.parcela_atual && lanc.total_parcelas ? `${lanc.parcela_atual}/${lanc.total_parcelas}` : '-';
             const isQuitacao = lanc.descricao.includes('Quitação');
             const isConciliado = lancamentosConciliados.has(lanc.id);
-            const styleConciliado = isConciliado ? 'background-color: rgba(25, 135, 84, 0.1);' : '';
+            const styleAttr = isConciliado ? ' style="background-color: rgba(25, 135, 84, 0.1);"' : '';
             
             if (isConciliado) {
                 console.log('Lançamento conciliado encontrado:', lanc.id, lanc.descricao);
             }
             
-            html += `
-                <tr style="${styleConciliado}">
-                    <td>${formatDate(lanc.data)}</td>
-                    <td>${lanc.descricao}</td>
-                    <td><span class="badge bg-secondary">${lanc.categorias ? lanc.categorias.nome : '-'}</span></td>
-                    <td class="${classeValor}"><strong>R$ ${valor}</strong></td>
-                    <td><span class="badge ${lanc.tipo === 'receita' ? 'bg-success' : 'bg-danger'}">${lanc.tipo}</span></td>
-                    <td><span class="badge bg-info">${parcelaDisplay}</span></td>
-                    <td>
-                        <span class="badge ${lanc.status === 'pago' ? 'bg-success' : 'bg-warning'}">${lanc.status === 'pago' ? 'Pago' : 'Pendente'}</span>
-                    </td>
-                    <td>
-                        ${isQuitacao ? `<button class="btn btn-sm btn-info" onclick="verDetalhesQuitacao(${lanc.id})" title="Ver Detalhes da Quitação">
-                            <i class="bi bi-info-circle"></i>
-                        </button>` : ''}
-                        <button class="btn btn-sm ${lanc.status === 'pago' ? 'btn-success' : 'btn-warning'}" 
-                                onclick="toggleStatus(${lanc.id}, '${lanc.status}')" 
-                                title="${lanc.status === 'pago' ? 'Marcar como Pendente' : 'Marcar como Pago'}">
-                            <i class="bi bi-${lanc.status === 'pago' ? 'arrow-counterclockwise' : 'check-circle'}"></i>
-                        </button>
-                        <button class="btn btn-sm btn-primary" onclick="editarLancamento(${lanc.id})" title="Editar">
-                            <i class="bi bi-pencil"></i>
-                        </button>
-                        <button class="btn btn-sm btn-danger" onclick="deleteLancamento(${lanc.id})" title="Excluir">
-                            <i class="bi bi-trash"></i>
-                        </button>
-                    </td>
-                </tr>
-            `;
+            html += '<tr' + styleAttr + '>';
+            html += '<td>' + formatDate(lanc.data) + '</td>';
+            html += '<td>' + lanc.descricao + '</td>';
+            html += '<td><span class="badge bg-secondary">' + (lanc.categorias ? lanc.categorias.nome : '-') + '</span></td>';
+            html += '<td class="' + classeValor + '"><strong>R$ ' + valor + '</strong></td>';
+            html += '<td><span class="badge ' + (lanc.tipo === 'receita' ? 'bg-success' : 'bg-danger') + '">' + lanc.tipo + '</span></td>';
+            html += '<td><span class="badge bg-info">' + parcelaDisplay + '</span></td>';
+            html += '<td>';
+            html += '<span class="badge ' + (lanc.status === 'pago' ? 'bg-success' : 'bg-warning') + '">' + (lanc.status === 'pago' ? 'Pago' : 'Pendente') + '</span>';
+            html += '</td>';
+            html += '<td>';
+            if (isQuitacao) {
+                html += '<button class="btn btn-sm btn-info" onclick="verDetalhesQuitacao(' + lanc.id + ')" title="Ver Detalhes da Quitação">';
+                html += '<i class="bi bi-info-circle"></i>';
+                html += '</button>';
+            }
+            html += '<button class="btn btn-sm ' + (lanc.status === 'pago' ? 'btn-success' : 'btn-warning') + '" ';
+            html += 'onclick="toggleStatus(' + lanc.id + ', \'' + lanc.status + '\')" ';
+            html += 'title="' + (lanc.status === 'pago' ? 'Marcar como Pendente' : 'Marcar como Pago') + '">';
+            html += '<i class="bi bi-' + (lanc.status === 'pago' ? 'arrow-counterclockwise' : 'check-circle') + '"></i>';
+            html += '</button>';
+            html += '<button class="btn btn-sm btn-primary" onclick="editarLancamento(' + lanc.id + ')" title="Editar">';
+            html += '<i class="bi bi-pencil"></i>';
+            html += '</button>';
+            html += '<button class="btn btn-sm btn-danger" onclick="deleteLancamento(' + lanc.id + ')" title="Excluir">';
+            html += '<i class="bi bi-trash"></i>';
+            html += '</button>';
+            html += '</td>';
+            html += '</tr>';
         });
         
         html += '</tbody></table></div>';
@@ -5038,14 +5038,19 @@ async function salvarConciliacoes() {
         }
         
         if (registros.length > 0) {
-            const { error } = await supabase
+            console.log('Salvando', registros.length, 'conciliações:', registros);
+            
+            const { data, error } = await supabase
                 .from('conciliacoes')
-                .insert(registros);
+                .insert(registros)
+                .select();
             
             if (error) throw error;
+            
+            console.log('Conciliações salvas:', data);
         }
         
-        showAlert('Conciliações salvas com sucesso!', 'success');
+        showAlert('Conciliações salvas com sucesso! Total: ' + registros.length, 'success');
         
         // Mostrar itens não conciliados
         mostrarNaoConciliados();
