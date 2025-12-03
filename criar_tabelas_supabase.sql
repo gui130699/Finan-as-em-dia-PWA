@@ -191,6 +191,36 @@ CREATE POLICY ofx_importados_policy ON ofx_importados
     USING (usuario_id = current_setting('app.current_user_id', TRUE)::INTEGER);
 
 -- ============================================
+-- TABELA DE CONCILIAÇÕES BANCÁRIAS
+-- ============================================
+
+CREATE TABLE IF NOT EXISTS conciliacoes (
+    id SERIAL PRIMARY KEY,
+    usuario_id INTEGER NOT NULL,
+    lancamento_id INTEGER NOT NULL,
+    fitid VARCHAR(255),
+    data_extrato DATE NOT NULL,
+    valor_extrato DECIMAL(10, 2) NOT NULL,
+    descricao_extrato TEXT,
+    data_conciliacao TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    
+    FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE,
+    FOREIGN KEY (lancamento_id) REFERENCES lancamentos(id) ON DELETE CASCADE
+);
+
+-- Índices para otimização
+CREATE INDEX IF NOT EXISTS idx_conciliacoes_usuario ON conciliacoes(usuario_id);
+CREATE INDEX IF NOT EXISTS idx_conciliacoes_lancamento ON conciliacoes(lancamento_id);
+CREATE INDEX IF NOT EXISTS idx_conciliacoes_fitid ON conciliacoes(fitid);
+
+-- Política RLS para conciliacoes
+ALTER TABLE conciliacoes ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY conciliacoes_policy ON conciliacoes
+    FOR ALL
+    USING (usuario_id = current_setting('app.current_user_id', TRUE)::INTEGER);
+
+-- ============================================
 -- FIM DO SCRIPT
 -- ============================================
 

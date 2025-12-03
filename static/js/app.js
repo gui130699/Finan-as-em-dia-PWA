@@ -179,6 +179,10 @@ async function showPage(page) {
             app.innerHTML = getImportarOFXHTML();
             await initImportarOFX();
             break;
+        case 'conciliacao':
+            app.innerHTML = getConciliacaoHTML();
+            await initConciliacao();
+            break;
         case 'ajuda':
             app.innerHTML = getAjudaHTML();
             break;
@@ -777,6 +781,11 @@ function getNavbar(activePage) {
                         <li class="nav-item">
                             <a class="nav-link ${activePage === 'importar_ofx' ? 'active' : ''}" href="#" onclick="showPage('importar_ofx')">
                                 <i class="bi bi-file-earmark-arrow-up"></i> Importar OFX
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link ${activePage === 'conciliacao' ? 'active' : ''}" href="#" onclick="showPage('conciliacao')">
+                                <i class="bi bi-check2-square"></i> Conciliação
                             </a>
                         </li>
                         <li class="nav-item">
@@ -4479,6 +4488,417 @@ async function confirmarImportacaoOFX() {
         console.error('Erro ao importar transações:', err);
         showAlert('Erro ao importar transações: ' + err.message, 'danger');
     }
+}
+
+// ============================================
+// CONCILIAÇÃO BANCÁRIA
+// ============================================
+
+let transacoesConciliacao = [];
+let lancamentosConciliacao = [];
+let conciliacoesMapa = new Map();
+
+function getConciliacaoHTML() {
+    return `
+        ${getNavbar('conciliacao')}
+        <div class="container-fluid mt-4">
+            <h2><i class="bi bi-check2-square"></i> Conciliação Bancária</h2>
+            
+            <div class="card mb-4">
+                <div class="card-body">
+                    <h5 class="card-title">Carregar Extrato OFX</h5>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <input type="file" class="form-control" id="arquivo-conciliacao" accept=".ofx" onchange="processarArquivoConciliacao(event)">
+                            <small class="text-muted">Selecione o arquivo OFX do banco para conciliar</small>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Mês dos Lançamentos</label>
+                            <input type="month" class="form-control" id="mes-conciliacao" onchange="carregarLancamentosConciliacao()">
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div id="area-conciliacao" style="display: none;">
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="card mb-4">
+                            <div class="card-header bg-primary text-white">
+                                <h5 class="mb-0">Extrato Bancário (OFX)</h5>
+                            </div>
+                            <div class="card-body" style="max-height: 600px; overflow-y: auto;">
+                                <div id="lista-extrato-conciliacao"></div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-6">
+                        <div class="card mb-4">
+                            <div class="card-header bg-success text-white">
+                                <h5 class="mb-0">Lançamentos no Sistema</h5>
+                            </div>
+                            <div class="card-body" style="max-height: 600px; overflow-y: auto;">
+                                <div id="lista-lancamentos-conciliacao"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="card mb-4">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <span id="contador-conciliacoes" class="badge bg-info fs-6">0 conciliações realizadas</span>
+                            </div>
+                            <button class="btn btn-success btn-lg" onclick="salvarConciliacoes()">
+                                <i class="bi bi-save"></i> Salvar Conciliações
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Modal de Não Conciliados -->
+            <div class="modal fade" id="modalNaoConciliados" tabindex="-1">
+                <div class="modal-dialog modal-xl">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">Itens Não Conciliados</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div id="lista-nao-conciliados"></div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+                            <button type="button" class="btn btn-primary" onclick="importarNaoConciliados()">
+                                <i class="bi bi-download"></i> Importar Não Conciliados
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+async function initConciliacao() {
+    conciliacoesMapa.clear();
+    
+    // Definir mês padrão como atual
+    const hoje = new Date();
+    const mesAtual = hoje.getFullYear() + '-' + String(hoje.getMonth() + 1).padStart(2, '0');
+    document.getElementById('mes-conciliacao').value = mesAtual;
+    
+    // Carregar categorias
+    await carregarCategorias();
+    
+    // Se já tinha transações de conciliação, recarregar
+    if (transacoesConciliacao.length > 0) {
+        await carregarLancamentosConciliacao();
+        displayConciliacao();
+    }
+}
+
+function processarArquivoConciliacao(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    
+    const reader = new FileReader();
+    reader.onload = async function(e) {
+        try {
+            const conteudo = e.target.result;
+            transacoesConciliacao = parseOFX(conteudo);
+            
+            if (transacoesConciliacao.length === 0) {
+                showAlert('Nenhuma transação encontrada no arquivo OFX', 'warning');
+                return;
+            }
+            
+            showAlert(transacoesConciliacao.length + ' transações carregadas do extrato!', 'success');
+            await carregarLancamentosConciliacao();
+            displayConciliacao();
+            
+        } catch (err) {
+            console.error('Erro ao processar OFX:', err);
+            showAlert('Erro ao processar arquivo OFX: ' + err.message, 'danger');
+        }
+    };
+    reader.readAsText(file);
+}
+
+async function carregarLancamentosConciliacao() {
+    const mesSelecionado = document.getElementById('mes-conciliacao').value;
+    if (!mesSelecionado) return;
+    
+    const [ano, mes] = mesSelecionado.split('-');
+    const ultimoDia = new Date(ano, mes, 0).getDate();
+    const dataInicio = mesSelecionado + '-01';
+    const dataFim = mesSelecionado + '-' + String(ultimoDia).padStart(2, '0');
+    
+    try {
+        const { data, error } = await supabase
+            .from('lancamentos')
+            .select('*, categorias(nome, tipo)')
+            .eq('usuario_id', currentUser.id)
+            .gte('data', dataInicio)
+            .lte('data', dataFim)
+            .order('data', { ascending: true });
+        
+        if (error) throw error;
+        
+        lancamentosConciliacao = data || [];
+        
+        if (transacoesConciliacao.length > 0) {
+            displayConciliacao();
+        }
+        
+    } catch (err) {
+        console.error('Erro ao carregar lançamentos:', err);
+        showAlert('Erro ao carregar lançamentos: ' + err.message, 'danger');
+    }
+}
+
+function displayConciliacao() {
+    document.getElementById('area-conciliacao').style.display = 'block';
+    
+    // Exibir extrato
+    let htmlExtrato = '';
+    transacoesConciliacao.forEach((t, index) => {
+        const conciliado = Array.from(conciliacoesMapa.values()).some(c => c.extratoIndex === index);
+        const classes = conciliado ? 'border-success bg-success bg-opacity-10' : '';
+        const tipoClasse = t.tipo === 'CREDIT' ? 'text-success' : 'text-danger';
+        const tipoTexto = t.tipo === 'CREDIT' ? 'Crédito' : 'Débito';
+        
+        htmlExtrato += '<div class="card mb-2 ' + classes + '" id="extrato-' + index + '">';
+        htmlExtrato += '<div class="card-body p-2">';
+        htmlExtrato += '<div class="d-flex justify-content-between align-items-center">';
+        htmlExtrato += '<div>';
+        htmlExtrato += '<strong>' + formatarData(t.data) + '</strong> - ';
+        htmlExtrato += '<span class="' + tipoClasse + '">' + tipoTexto + '</span><br>';
+        htmlExtrato += '<small>' + t.descricao + '</small>';
+        htmlExtrato += '</div>';
+        htmlExtrato += '<div class="text-end">';
+        htmlExtrato += '<strong class="' + tipoClasse + '">R$ ' + t.valor.toFixed(2) + '</strong><br>';
+        if (!conciliado) {
+            htmlExtrato += '<button class="btn btn-sm btn-outline-primary" onclick="selecionarExtrato(' + index + ')">Selecionar</button>';
+        } else {
+            htmlExtrato += '<button class="btn btn-sm btn-outline-secondary" onclick="desconciliar(' + index + ')">Desfazer</button>';
+        }
+        htmlExtrato += '</div></div></div></div>';
+    });
+    document.getElementById('lista-extrato-conciliacao').innerHTML = htmlExtrato || '<p class="text-muted">Nenhuma transação no extrato</p>';
+    
+    // Exibir lançamentos
+    let htmlLancamentos = '';
+    lancamentosConciliacao.forEach((l, index) => {
+        const conciliado = Array.from(conciliacoesMapa.values()).some(c => c.lancamentoId === l.id);
+        const classes = conciliado ? 'border-success bg-success bg-opacity-10' : '';
+        const tipoClasse = l.tipo === 'receita' ? 'text-success' : 'text-danger';
+        const tipoTexto = l.tipo === 'receita' ? 'Receita' : 'Despesa';
+        
+        htmlLancamentos += '<div class="card mb-2 ' + classes + '" id="lancamento-' + l.id + '">';
+        htmlLancamentos += '<div class="card-body p-2">';
+        htmlLancamentos += '<div class="d-flex justify-content-between align-items-center">';
+        htmlLancamentos += '<div>';
+        htmlLancamentos += '<strong>' + formatarData(l.data) + '</strong> - ';
+        htmlLancamentos += '<span class="' + tipoClasse + '">' + tipoTexto + '</span><br>';
+        htmlLancamentos += '<small>' + l.descricao + '</small><br>';
+        htmlLancamentos += '<span class="badge bg-secondary">' + l.categorias.nome + '</span>';
+        htmlLancamentos += '</div>';
+        htmlLancamentos += '<div class="text-end">';
+        htmlLancamentos += '<strong class="' + tipoClasse + '">R$ ' + parseFloat(l.valor).toFixed(2) + '</strong><br>';
+        if (!conciliado) {
+            htmlLancamentos += '<button class="btn btn-sm btn-outline-success" onclick="selecionarLancamento(' + l.id + ')">Selecionar</button>';
+        } else {
+            htmlLancamentos += '<button class="btn btn-sm btn-outline-secondary" onclick="desconciliarLancamento(' + l.id + ')">Desfazer</button>';
+        }
+        htmlLancamentos += '</div></div></div></div>';
+    });
+    document.getElementById('lista-lancamentos-conciliacao').innerHTML = htmlLancamentos || '<p class="text-muted">Nenhum lançamento neste período</p>';
+    
+    // Atualizar contador
+    document.getElementById('contador-conciliacoes').textContent = conciliacoesMapa.size + ' conciliações realizadas';
+}
+
+let extratoSelecionado = null;
+let lancamentoSelecionado = null;
+
+function selecionarExtrato(index) {
+    extratoSelecionado = index;
+    
+    // Destacar selecionado
+    document.querySelectorAll('[id^="extrato-"]').forEach(el => {
+        el.classList.remove('border-primary', 'border-3');
+    });
+    document.getElementById('extrato-' + index).classList.add('border-primary', 'border-3');
+    
+    // Se já tem lançamento selecionado, conciliar
+    if (lancamentoSelecionado !== null) {
+        conciliar();
+    }
+}
+
+function selecionarLancamento(id) {
+    lancamentoSelecionado = id;
+    
+    // Destacar selecionado
+    document.querySelectorAll('[id^="lancamento-"]').forEach(el => {
+        el.classList.remove('border-primary', 'border-3');
+    });
+    document.getElementById('lancamento-' + id).classList.add('border-primary', 'border-3');
+    
+    // Se já tem extrato selecionado, conciliar
+    if (extratoSelecionado !== null) {
+        conciliar();
+    }
+}
+
+function conciliar() {
+    if (extratoSelecionado === null || lancamentoSelecionado === null) return;
+    
+    const chave = 'E' + extratoSelecionado + '-L' + lancamentoSelecionado;
+    conciliacoesMapa.set(chave, {
+        extratoIndex: extratoSelecionado,
+        lancamentoId: lancamentoSelecionado
+    });
+    
+    extratoSelecionado = null;
+    lancamentoSelecionado = null;
+    
+    displayConciliacao();
+}
+
+function desconciliar(extratoIndex) {
+    for (let [chave, valor] of conciliacoesMapa.entries()) {
+        if (valor.extratoIndex === extratoIndex) {
+            conciliacoesMapa.delete(chave);
+            break;
+        }
+    }
+    displayConciliacao();
+}
+
+function desconciliarLancamento(lancamentoId) {
+    for (let [chave, valor] of conciliacoesMapa.entries()) {
+        if (valor.lancamentoId === lancamentoId) {
+            conciliacoesMapa.delete(chave);
+            break;
+        }
+    }
+    displayConciliacao();
+}
+
+async function salvarConciliacoes() {
+    if (conciliacoesMapa.size === 0) {
+        showAlert('Nenhuma conciliação para salvar!', 'warning');
+        return;
+    }
+    
+    try {
+        const registros = [];
+        
+        for (let [chave, valor] of conciliacoesMapa.entries()) {
+            const transacao = transacoesConciliacao[valor.extratoIndex];
+            const lancamento = lancamentosConciliacao.find(l => l.id === valor.lancamentoId);
+            
+            if (!transacao || !lancamento) continue;
+            
+            registros.push({
+                usuario_id: currentUser.id,
+                lancamento_id: lancamento.id,
+                fitid: transacao.fitid || null,
+                data_extrato: transacao.data,
+                valor_extrato: transacao.valor,
+                descricao_extrato: transacao.descricao,
+                data_conciliacao: new Date().toISOString()
+            });
+        }
+        
+        if (registros.length > 0) {
+            const { error } = await supabase
+                .from('conciliacoes')
+                .insert(registros);
+            
+            if (error) throw error;
+        }
+        
+        showAlert('Conciliações salvas com sucesso!', 'success');
+        
+        // Mostrar itens não conciliados
+        mostrarNaoConciliados();
+        
+    } catch (err) {
+        console.error('Erro ao salvar conciliações:', err);
+        showAlert('Erro ao salvar conciliações: ' + err.message, 'danger');
+    }
+}
+
+function mostrarNaoConciliados() {
+    const extratosConciliados = Array.from(conciliacoesMapa.values()).map(c => c.extratoIndex);
+    const naoConciliados = transacoesConciliacao.filter((t, i) => !extratosConciliados.includes(i));
+    
+    if (naoConciliados.length === 0) {
+        showAlert('Todas as transações foram conciliadas!', 'success');
+        return;
+    }
+    
+    let html = '<h6>Transações do extrato não conciliadas (' + naoConciliados.length + '):</h6>';
+    html += '<div class="table-responsive"><table class="table table-sm"><thead><tr>';
+    html += '<th><input type="checkbox" onchange="toggleTodosNaoConciliados(this.checked)"></th>';
+    html += '<th>Data</th><th>Descrição</th><th>Tipo</th><th>Valor</th>';
+    html += '</tr></thead><tbody>';
+    
+    naoConciliados.forEach((t, index) => {
+        const tipoClasse = t.tipo === 'CREDIT' ? 'text-success' : 'text-danger';
+        const tipoTexto = t.tipo === 'CREDIT' ? 'Crédito' : 'Débito';
+        
+        html += '<tr>';
+        html += '<td><input type="checkbox" class="check-nao-conciliado" data-index="' + transacoesConciliacao.indexOf(t) + '"></td>';
+        html += '<td>' + formatarData(t.data) + '</td>';
+        html += '<td>' + t.descricao + '</td>';
+        html += '<td class="' + tipoClasse + '">' + tipoTexto + '</td>';
+        html += '<td class="' + tipoClasse + '">R$ ' + t.valor.toFixed(2) + '</td>';
+        html += '</tr>';
+    });
+    
+    html += '</tbody></table></div>';
+    
+    document.getElementById('lista-nao-conciliados').innerHTML = html;
+    
+    const modal = new bootstrap.Modal(document.getElementById('modalNaoConciliados'));
+    modal.show();
+}
+
+function toggleTodosNaoConciliados(checked) {
+    document.querySelectorAll('.check-nao-conciliado').forEach(cb => {
+        cb.checked = checked;
+    });
+}
+
+function importarNaoConciliados() {
+    const checkboxes = document.querySelectorAll('.check-nao-conciliado:checked');
+    
+    if (checkboxes.length === 0) {
+        showAlert('Selecione pelo menos uma transação para importar!', 'warning');
+        return;
+    }
+    
+    const selecionados = [];
+    checkboxes.forEach(cb => {
+        const index = parseInt(cb.dataset.index);
+        const transacao = transacoesConciliacao[index];
+        transacao.selecionado = true;
+        selecionados.push(transacao);
+    });
+    
+    // Fechar modal e abrir modal de importação
+    bootstrap.Modal.getInstance(document.getElementById('modalNaoConciliados')).hide();
+    
+    // Preparar para importação
+    transacoesFiltradas = selecionados;
+    abrirModalImportacaoOFX();
 }
 
 // ============================================
