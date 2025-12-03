@@ -3985,13 +3985,31 @@ function getImportarOFXHTML() {
                 
                 <div class="card mb-4">
                     <div class="card-body">
+                        <h5 class="card-title mb-3">Configurações de Importação</h5>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label"><strong>Categoria</strong></label>
+                                <select class="form-select" id="categoria-importacao-ofx">
+                                    <option value="">Selecione uma categoria...</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label"><strong>Data do Lançamento</strong></label>
+                                <input type="date" class="form-control" id="data-importacao-ofx">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="card mb-4">
+                    <div class="card-body">
                         <div class="d-flex justify-content-between align-items-center mb-3">
                             <h5 class="card-title mb-0">Transações Encontradas</h5>
                             <button class="btn btn-success" onclick="importarSelecionadosOFX()">
                                 <i class="bi bi-download"></i> Importar Selecionados
                             </button>
                         </div>
-                        <div id="lista-transacoes-ofx"></div>
+                        <div id="lista-transacoes-ofx" style="overflow-x: auto;"></div>
                     </div>
                 </div>
             </div>
@@ -4002,6 +4020,19 @@ function getImportarOFXHTML() {
 async function initImportarOFX() {
     transacoesOFX = [];
     transacoesFiltradas = [];
+    modoAgrupadoOFX = false;
+    
+    // Carregar categorias
+    await carregarCategorias();
+    const selectCategoria = document.getElementById('categoria-importacao-ofx');
+    selectCategoria.innerHTML = '<option value="">Selecione uma categoria...</option>';
+    categorias.forEach(c => {
+        selectCategoria.innerHTML += '<option value="' + c.id + '">' + c.nome + ' (' + (c.tipo === 'receita' ? 'Receita' : 'Despesa') + ')</option>';
+    });
+    
+    // Definir data padrão como hoje
+    const hoje = new Date().toISOString().split('T')[0];
+    document.getElementById('data-importacao-ofx').value = hoje;
 }
 
 function processarArquivoOFX(event) {
@@ -4154,9 +4185,9 @@ function displayTransacoesOFX() {
         return;
     }
     
-    let html = '<div class="table-responsive"><table class="table table-hover"><thead><tr>';
+    let html = '<div class="table-responsive"><table class="table table-hover table-sm"><thead><tr>';
     html += '<th width="50"><input type="checkbox" id="check-all-ofx" onchange="toggleTodosOFX(this.checked)"></th>';
-    html += '<th>Data</th><th>Descrição</th><th>Tipo</th><th>Valor</th></tr></thead><tbody>';
+    html += '<th style="white-space: nowrap;">Data</th><th>Descrição</th><th style="white-space: nowrap;">Tipo</th><th style="white-space: nowrap;">Valor</th></tr></thead><tbody>';
     
     transacoesFiltradas.forEach((t, index) => {
         const tipoTexto = t.tipo === 'CREDIT' ? 'Crédito' : 'Débito';
@@ -4165,10 +4196,10 @@ function displayTransacoesOFX() {
         
         html += '<tr>';
         html += '<td><input type="checkbox" ' + checked + ' onchange="toggleTransacaoOFX(' + index + ')"></td>';
-        html += '<td>' + formatarData(t.data) + '</td>';
-        html += '<td>' + t.descricao + '</td>';
-        html += '<td class="' + tipoClasse + '">' + tipoTexto + '</td>';
-        html += '<td class="' + tipoClasse + '">R$ ' + t.valor.toFixed(2) + '</td>';
+        html += '<td style="white-space: nowrap;">' + formatarData(t.data) + '</td>';
+        html += '<td style="max-width: 400px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="' + t.descricao + '">' + t.descricao + '</td>';
+        html += '<td class="' + tipoClasse + '" style="white-space: nowrap;">' + tipoTexto + '</td>';
+        html += '<td class="' + tipoClasse + '" style="white-space: nowrap;">R$ ' + t.valor.toFixed(2) + '</td>';
         html += '</tr>';
     });
     
@@ -4215,7 +4246,7 @@ function displayTransacoesAgrupadasOFX() {
         html += '<div class="card-body p-0">';
         html += '<table class="table table-sm mb-0"><thead><tr>';
         html += '<th width="50"><input type="checkbox" onchange="toggleGrupoOFX(this.checked, [' + indices + '])"></th>';
-        html += '<th>Data</th><th>Descrição</th><th>Tipo</th><th>Valor</th>';
+        html += '<th style="white-space: nowrap;">Data</th><th>Descrição</th><th style="white-space: nowrap;">Tipo</th><th style="white-space: nowrap;">Valor</th>';
         html += '</tr></thead><tbody>';
         
         transacoes.forEach(t => {
@@ -4225,10 +4256,10 @@ function displayTransacoesAgrupadasOFX() {
             
             html += '<tr>';
             html += '<td><input type="checkbox" ' + checked + ' onchange="toggleTransacaoOFX(' + t.indexOriginal + ')"></td>';
-            html += '<td>' + formatarData(t.data) + '</td>';
-            html += '<td>' + t.descricao + '</td>';
-            html += '<td class="' + tipoClasse + '">' + tipoTexto + '</td>';
-            html += '<td class="' + tipoClasse + '">R$ ' + t.valor.toFixed(2) + '</td>';
+            html += '<td style="white-space: nowrap;">' + formatarData(t.data) + '</td>';
+            html += '<td style="max-width: 400px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="' + t.descricao + '">' + t.descricao + '</td>';
+            html += '<td class="' + tipoClasse + '" style="white-space: nowrap;">' + tipoTexto + '</td>';
+            html += '<td class="' + tipoClasse + '" style="white-space: nowrap;">R$ ' + t.valor.toFixed(2) + '</td>';
             html += '</tr>';
         });
         
@@ -4273,6 +4304,20 @@ async function importarSelecionadosOFX() {
         return;
     }
     
+    // Validar categoria e data
+    const categoriaId = document.getElementById('categoria-importacao-ofx').value;
+    const dataLancamento = document.getElementById('data-importacao-ofx').value;
+    
+    if (!categoriaId) {
+        showAlert('Por favor, selecione uma categoria para importação!', 'warning');
+        return;
+    }
+    
+    if (!dataLancamento) {
+        showAlert('Por favor, selecione uma data para o lançamento!', 'warning');
+        return;
+    }
+    
     try {
         // Buscar lançamentos existentes para evitar duplicatas
         const { data: lancamentosExistentes, error: erroBusca } = await supabase
@@ -4286,10 +4331,17 @@ async function importarSelecionadosOFX() {
         let duplicados = 0;
         let erros = 0;
         
+        // Buscar tipo da categoria selecionada
+        const categoriaSelecionada = categorias.find(c => c.id == categoriaId);
+        if (!categoriaSelecionada) {
+            showAlert('Categoria inválida!', 'danger');
+            return;
+        }
+        
         for (const transacao of selecionados) {
             // Verificar duplicata (mesma data, descrição similar e valor)
             const isDuplicado = lancamentosExistentes.some(l => {
-                return l.data === transacao.data && 
+                return l.data === dataLancamento && 
                        Math.abs(parseFloat(l.valor) - transacao.valor) < 0.01 &&
                        l.descricao.toLowerCase().includes(transacao.descricao.toLowerCase().substring(0, 20));
             });
@@ -4299,33 +4351,17 @@ async function importarSelecionadosOFX() {
                 continue;
             }
             
-            // Determinar tipo (receita ou despesa)
-            const tipo = transacao.tipo === 'CREDIT' ? 'receita' : 'despesa';
-            
-            // Buscar categoria padrão
-            const { data: categoriasPadrao } = await supabase
-                .from('categorias')
-                .select('id')
-                .eq('usuario_id', currentUser.id)
-                .eq('tipo', tipo)
-                .limit(1);
-            
-            if (!categoriasPadrao || categoriasPadrao.length === 0) {
-                erros++;
-                continue;
-            }
-            
-            // Inserir lançamento
+            // Inserir lançamento com a categoria e data escolhidas
             const { error: erroInsert } = await supabase
                 .from('lancamentos')
                 .insert({
                     usuario_id: currentUser.id,
-                    data: transacao.data,
+                    data: dataLancamento,
                     descricao: transacao.descricao,
-                    categoria_id: categoriasPadrao[0].id,
+                    categoria_id: categoriaId,
                     valor: transacao.valor,
-                    tipo: tipo,
-                    status: 'pago', // Importações OFX são consideradas pagas
+                    tipo: categoriaSelecionada.tipo,
+                    status: 'pago',
                     conta_fixa_id: null,
                     parcela_atual: null,
                     total_parcelas: null
