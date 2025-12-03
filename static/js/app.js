@@ -2170,7 +2170,7 @@ async function loadLancamentos() {
             const styleAttr = isConciliado ? ' style="background-color: rgba(25, 135, 84, 0.1);"' : '';
             
             if (isConciliado) {
-                console.log('Lançamento conciliado encontrado:', lanc.id, lanc.descricao);
+                console.log('Lançamento conciliado encontrado:', lanc.id, lanc.descricao, 'styleAttr:', styleAttr);
             }
             
             html += '<tr' + styleAttr + '>';
@@ -2206,6 +2206,10 @@ async function loadLancamentos() {
         
         html += '</tbody></table></div>';
         listEl.innerHTML = html;
+        
+        // Verificar se os estilos foram aplicados
+        const trsComEstilo = listEl.querySelectorAll('tr[style]');
+        console.log('Total de linhas com estilo aplicado:', trsComEstilo.length);
     } catch (err) {
         console.error('Erro ao carregar lançamentos:', err);
         const listEl = document.getElementById('lancamentos-list');
