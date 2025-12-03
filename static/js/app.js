@@ -1235,12 +1235,20 @@ async function loadAvisosVencimento(lancamentos, saldoAtual, despesasPendentes, 
                                 <div class="list-group list-group-flush">
                                     ${vencem7Dias.map(c => `
                                         <div class="list-group-item">
-                                            <div class="d-flex justify-content-between align-items-center">
+                                            <div class="d-flex justify-content-between align-items-start mb-2">
                                                 <div>
                                                     <strong>${c.descricao}</strong>
                                                     <br><small>${formatarData(c.data)}</small>
                                                 </div>
                                                 <strong>R$ ${parseFloat(c.valor).toFixed(2)}</strong>
+                                            </div>
+                                            <div class="d-flex gap-2">
+                                                <button class="btn btn-success btn-sm flex-fill" onclick="pagarLancamento(${c.id})">
+                                                    <i class="bi bi-check-circle"></i> Pagar
+                                                </button>
+                                                <button class="btn btn-warning btn-sm flex-fill" onclick="adiarLancamento(${c.id}, '${c.descricao}', '${c.data}')">
+                                                    <i class="bi bi-calendar-plus"></i> Adiar
+                                                </button>
                                             </div>
                                         </div>
                                     `).join('')}
