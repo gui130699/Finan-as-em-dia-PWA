@@ -2120,7 +2120,10 @@ async function loadLancamentos() {
             console.error('Erro ao buscar conciliações:', conciliacoesError);
         }
         
+        console.log('Conciliações encontradas:', conciliacoes?.length || 0, conciliacoes);
+        
         const lancamentosConciliados = new Set((conciliacoes || []).map(c => c.lancamento_id));
+        console.log('IDs de lançamentos conciliados:', Array.from(lancamentosConciliados));
         
         const listEl = document.getElementById('lancamentos-list');
         
@@ -2165,6 +2168,10 @@ async function loadLancamentos() {
             const isQuitacao = lanc.descricao.includes('Quitação');
             const isConciliado = lancamentosConciliados.has(lanc.id);
             const classeConciliado = isConciliado ? 'bg-success bg-opacity-10' : '';
+            
+            if (isConciliado) {
+                console.log('Lançamento conciliado encontrado:', lanc.id, lanc.descricao);
+            }
             
             html += `
                 <tr class="${classeConciliado}">
@@ -4624,6 +4631,7 @@ function getConciliacaoHTML() {
 async function initConciliacao() {
     extratosSelecionados.clear();
     lancamentoSelecionado = null;
+    conciliacoesMapa.clear();
     
     // Definir mês padrão como atual
     const hoje = new Date();
@@ -4633,11 +4641,44 @@ async function initConciliacao() {
     // Carregar categorias
     await carregarCategorias();
     
+    // Carregar conciliações salvas do banco
+    await carregarConciliacoesSalvas();
+    
     // Se já tinha transações de conciliação, recarregar
     if (transacoesConciliacao.length > 0) {
         await carregarLancamentosConciliacao();
         aplicarFiltrosConciliacao();
         displayConciliacao();
+    }
+}
+
+async function carregarConciliacoesSalvas() {
+    try {
+        const { data, error } = await supabase
+            .from('conciliacoes')
+            .select('*')
+            .eq('usuario_id', currentUser.id);
+        
+        if (error) throw error;
+        
+        if (data && data.length > 0) {
+            console.log('Conciliações carregadas do banco:', data.length);
+            
+            // Agrupar por lancamento_id
+            const conciliacoesPorLancamento = {};
+            data.forEach(c => {
+                if (!conciliacoesPorLancamento[c.lancamento_id]) {
+                    conciliacoesPorLancamento[c.lancamento_id] = [];
+                }
+                conciliacoesPorLancamento[c.lancamento_id].push(c);
+            });
+            
+            // Reconstruir o mapa de conciliações quando carregar extratos
+            window.conciliacoesBanco = data;
+        }
+        
+    } catch (err) {
+        console.error('Erro ao carregar conciliações:', err);
     }
 }
 
@@ -4658,6 +4699,12 @@ function processarArquivoConciliacao(event) {
             
             showAlert(transacoesConciliacao.length + ' transações carregadas do extrato!', 'success');
             await carregarLancamentosConciliacao();
+            
+            // Reconstruir conciliações salvas no mapa
+            if (window.conciliacoesBanco && window.conciliacoesBanco.length > 0) {
+                reconstruirConciliacoes();
+            }
+            
             aplicarFiltrosConciliacao();
             displayConciliacao();
             
@@ -4667,6 +4714,49 @@ function processarArquivoConciliacao(event) {
         }
     };
     reader.readAsText(file);
+}
+
+function reconstruirConciliacoes() {
+    conciliacoesMapa.clear();
+    
+    // Agrupar conciliações por lancamento_id
+    const conciliacoesPorLancamento = {};
+    window.conciliacoesBanco.forEach(c => {
+        if (!conciliacoesPorLancamento[c.lancamento_id]) {
+            conciliacoesPorLancamento[c.lancamento_id] = [];
+        }
+        conciliacoesPorLancamento[c.lancamento_id].push(c);
+    });
+    
+    // Para cada lançamento conciliado
+    Object.keys(conciliacoesPorLancamento).forEach(lancamentoId => {
+        const conciliacoesLancamento = conciliacoesPorLancamento[lancamentoId];
+        const extratosIndices = [];
+        
+        // Encontrar os índices das transações do extrato que correspondem às conciliações
+        conciliacoesLancamento.forEach(conciliacao => {
+            const index = transacoesConciliacao.findIndex(t => 
+                t.fitid === conciliacao.fitid &&
+                t.data === conciliacao.data_extrato &&
+                Math.abs(t.valor - conciliacao.valor_extrato) < 0.01
+            );
+            
+            if (index !== -1) {
+                extratosIndices.push(index);
+            }
+        });
+        
+        // Se encontrou os extratos, adicionar ao mapa
+        if (extratosIndices.length > 0) {
+            const chave = 'L' + lancamentoId + '-E' + extratosIndices.sort().join(',');
+            conciliacoesMapa.set(chave, {
+                extratosIndices: extratosIndices,
+                lancamentoId: parseInt(lancamentoId)
+            });
+        }
+    });
+    
+    console.log('Conciliações reconstruídas:', conciliacoesMapa.size);
 }
 
 async function carregarLancamentosConciliacao() {
