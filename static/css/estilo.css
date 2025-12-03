@@ -94,6 +94,15 @@ footer {
     background-color: rgba(0, 0, 0, 0.025);
 }
 
+/* Lançamentos conciliados - fundo verde */
+.lancamento-conciliado {
+    background-color: rgba(25, 135, 84, 0.15) !important;
+}
+
+.table-hover tbody tr.lancamento-conciliado:hover {
+    background-color: rgba(25, 135, 84, 0.25) !important;
+}
+
 /* ==================== BOTÕES ==================== */
 
 .btn {

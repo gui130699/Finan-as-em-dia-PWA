@@ -2167,13 +2167,13 @@ async function loadLancamentos() {
             const parcelaDisplay = lanc.parcela_atual && lanc.total_parcelas ? `${lanc.parcela_atual}/${lanc.total_parcelas}` : '-';
             const isQuitacao = lanc.descricao.includes('Quitação');
             const isConciliado = lancamentosConciliados.has(lanc.id);
-            const styleAttr = isConciliado ? ' style="background-color: rgba(25, 135, 84, 0.15) !important;"' : '';
+            const classeConciliado = isConciliado ? ' lancamento-conciliado' : '';
             
             if (isConciliado) {
-                console.log('Lançamento conciliado encontrado:', lanc.id, lanc.descricao, 'styleAttr:', styleAttr);
+                console.log('Lançamento conciliado encontrado:', lanc.id, lanc.descricao);
             }
             
-            html += '<tr' + styleAttr + '>';
+            html += '<tr class="' + classeConciliado + '">';
             html += '<td>' + formatDate(lanc.data) + '</td>';
             html += '<td>' + lanc.descricao + '</td>';
             html += '<td><span class="badge bg-secondary">' + (lanc.categorias ? lanc.categorias.nome : '-') + '</span></td>';
@@ -2207,9 +2207,9 @@ async function loadLancamentos() {
         html += '</tbody></table></div>';
         listEl.innerHTML = html;
         
-        // Verificar se os estilos foram aplicados
-        const trsComEstilo = listEl.querySelectorAll('tr[style]');
-        console.log('Total de linhas com estilo aplicado:', trsComEstilo.length);
+        // Verificar se as classes foram aplicadas
+        const trsComClasse = listEl.querySelectorAll('tr.lancamento-conciliado');
+        console.log('Total de linhas conciliadas:', trsComClasse.length);
     } catch (err) {
         console.error('Erro ao carregar lançamentos:', err);
         const listEl = document.getElementById('lancamentos-list');
@@ -4858,17 +4858,37 @@ async function carregarLancamentosConciliacao() {
     const dataFim = mesSelecionado + '-' + String(ultimoDia).padStart(2, '0');
     
     try {
-        const { data, error } = await supabase
-            .from('lancamentos')
-            .select('*, categorias(nome, tipo)')
-            .eq('usuario_id', currentUser.id)
-            .gte('data', dataInicio)
-            .lte('data', dataFim)
-            .order('data', { ascending: true });
+        // Buscar lançamentos e conciliações existentes
+        const [lancamentosResult, conciliacoesResult] = await Promise.all([
+            supabase
+                .from('lancamentos')
+                .select('*, categorias(nome, tipo)')
+                .eq('usuario_id', currentUser.id)
+                .gte('data', dataInicio)
+                .lte('data', dataFim)
+                .order('data', { ascending: true }),
+            supabase
+                .from('conciliacoes')
+                .select('lancamento_id')
+                .eq('usuario_id', currentUser.id)
+        ]);
         
-        if (error) throw error;
+        if (lancamentosResult.error) throw lancamentosResult.error;
+        if (conciliacoesResult.error) throw conciliacoesResult.error;
         
-        lancamentosConciliacao = data || [];
+        // Criar set de IDs já conciliados
+        const idsJaConciliados = new Set(
+            (conciliacoesResult.data || []).map(c => c.lancamento_id)
+        );
+        
+        // Filtrar apenas lançamentos não conciliados
+        lancamentosConciliacao = (lancamentosResult.data || []).filter(
+            l => !idsJaConciliados.has(l.id)
+        );
+        
+        console.log('Lançamentos carregados:', lancamentosResult.data?.length || 0, 
+                    'Já conciliados:', idsJaConciliados.size,
+                    'Disponíveis:', lancamentosConciliacao.length);
         
         if (transacoesConciliacao.length > 0) {
             aplicarFiltrosConciliacao();
