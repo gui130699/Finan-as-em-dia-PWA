@@ -4004,7 +4004,7 @@ function processarArquivoOFX(event) {
                 return;
             }
             
-            showAlert(\`\${transacoesOFX.length} transações encontradas!\`, 'success');
+            showAlert(transacoesOFX.length + ' transações encontradas!', 'success');
             document.getElementById('area-filtros').style.display = 'block';
             aplicarFiltrosOFX();
         } catch (err) {
@@ -4056,7 +4056,7 @@ function parseOFX(conteudo) {
 }
 
 function extrairCampoOFX(texto, campo) {
-    const regex = new RegExp(\`<\${campo}>(.*?)(?:<|\r|\n)\`, 'i');
+    const regex = new RegExp('<' + campo + '>(.*?)(?:<|\\r|\\n)', 'i');
     const match = texto.match(regex);
     return match ? match[1].trim() : '';
 }
@@ -4114,14 +4114,15 @@ function displayTransacoesOFX() {
     transacoesFiltradas.forEach((t, index) => {
         const tipoTexto = t.tipo === 'CREDIT' ? 'Crédito' : 'Débito';
         const tipoClasse = t.tipo === 'CREDIT' ? 'text-success' : 'text-danger';
+        const checked = t.selecionado ? 'checked' : '';
         
-        html += \`<tr>
-            <td><input type="checkbox" \${t.selecionado ? 'checked' : ''} onchange="toggleTransacaoOFX(\${index})"></td>
-            <td>\${formatarData(t.data)}</td>
-            <td>\${t.descricao}</td>
-            <td class="\${tipoClasse}">\${tipoTexto}</td>
-            <td class="\${tipoClasse}">R$ \${t.valor.toFixed(2)}</td>
-        </tr>\`;
+        html += '<tr>';
+        html += '<td><input type="checkbox" ' + checked + ' onchange="toggleTransacaoOFX(' + index + ')"></td>';
+        html += '<td>' + formatarData(t.data) + '</td>';
+        html += '<td>' + t.descricao + '</td>';
+        html += '<td class="' + tipoClasse + '">' + tipoTexto + '</td>';
+        html += '<td class="' + tipoClasse + '">R$ ' + t.valor.toFixed(2) + '</td>';
+        html += '</tr>';
     });
     
     html += '</tbody></table></div>';
@@ -4150,51 +4151,41 @@ function displayTransacoesAgrupadasOFX() {
     
     for (const [estabelecimento, transacoes] of Object.entries(grupos)) {
         const total = transacoes.reduce((sum, t) => sum + (t.tipo === 'CREDIT' ? t.valor : -t.valor), 0);
-        const totalTexto = total >= 0 ? \`+R$ \${total.toFixed(2)}\` : \`-R$ \${Math.abs(total).toFixed(2)}\`;
+        const totalTexto = total >= 0 ? ('+R$ ' + total.toFixed(2)) : ('-R$ ' + Math.abs(total).toFixed(2));
         const totalClasse = total >= 0 ? 'text-success' : 'text-danger';
         
-        html += \`
-            <div class="card mb-3">
-                <div class="card-header" style="cursor: pointer;" data-bs-toggle="collapse" data-bs-target="#grupo-\${grupoIndex}">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <div>
-                            <i class="bi bi-chevron-right me-2"></i>
-                            <strong>\${estabelecimento}</strong>
-                            <span class="badge bg-secondary ms-2">\${transacoes.length} transações</span>
-                        </div>
-                        <strong class="\${totalClasse}">\${totalTexto}</strong>
-                    </div>
-                </div>
-                <div id="grupo-\${grupoIndex}" class="collapse">
-                    <div class="card-body p-0">
-                        <table class="table table-sm mb-0">
-                            <thead>
-                                <tr>
-                                    <th width="50"><input type="checkbox" onchange="toggleGrupoOFX(this.checked, [\${transacoes.map(t => t.indexOriginal).join(',')}])"></th>
-                                    <th>Data</th>
-                                    <th>Descrição</th>
-                                    <th>Tipo</th>
-                                    <th>Valor</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                \${transacoes.map(t => {
-                                    const tipoTexto = t.tipo === 'CREDIT' ? 'Crédito' : 'Débito';
-                                    const tipoClasse = t.tipo === 'CREDIT' ? 'text-success' : 'text-danger';
-                                    return \`<tr>
-                                        <td><input type="checkbox" \${t.selecionado ? 'checked' : ''} onchange="toggleTransacaoOFX(\${t.indexOriginal})"></td>
-                                        <td>\${formatarData(t.data)}</td>
-                                        <td>\${t.descricao}</td>
-                                        <td class="\${tipoClasse}">\${tipoTexto}</td>
-                                        <td class="\${tipoClasse}">R$ \${t.valor.toFixed(2)}</td>
-                                    </tr>\`;
-                                }).join('')}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-        \`;
+        const indices = transacoes.map(t => t.indexOriginal).join(',');
+        
+        html += '<div class="card mb-3">';
+        html += '<div class="card-header" style="cursor: pointer;" data-bs-toggle="collapse" data-bs-target="#grupo-' + grupoIndex + '">';
+        html += '<div class="d-flex justify-content-between align-items-center">';
+        html += '<div><i class="bi bi-chevron-right me-2"></i>';
+        html += '<strong>' + estabelecimento + '</strong>';
+        html += '<span class="badge bg-secondary ms-2">' + transacoes.length + ' transações</span></div>';
+        html += '<strong class="' + totalClasse + '">' + totalTexto + '</strong>';
+        html += '</div></div>';
+        html += '<div id="grupo-' + grupoIndex + '" class="collapse">';
+        html += '<div class="card-body p-0">';
+        html += '<table class="table table-sm mb-0"><thead><tr>';
+        html += '<th width="50"><input type="checkbox" onchange="toggleGrupoOFX(this.checked, [' + indices + '])"></th>';
+        html += '<th>Data</th><th>Descrição</th><th>Tipo</th><th>Valor</th>';
+        html += '</tr></thead><tbody>';
+        
+        transacoes.forEach(t => {
+            const tipoTexto = t.tipo === 'CREDIT' ? 'Crédito' : 'Débito';
+            const tipoClasse = t.tipo === 'CREDIT' ? 'text-success' : 'text-danger';
+            const checked = t.selecionado ? 'checked' : '';
+            
+            html += '<tr>';
+            html += '<td><input type="checkbox" ' + checked + ' onchange="toggleTransacaoOFX(' + t.indexOriginal + ')"></td>';
+            html += '<td>' + formatarData(t.data) + '</td>';
+            html += '<td>' + t.descricao + '</td>';
+            html += '<td class="' + tipoClasse + '">' + tipoTexto + '</td>';
+            html += '<td class="' + tipoClasse + '">R$ ' + t.valor.toFixed(2) + '</td>';
+            html += '</tr>';
+        });
+        
+        html += '</tbody></table></div></div></div>';
         grupoIndex++;
     }
     
@@ -4301,9 +4292,9 @@ async function importarSelecionadosOFX() {
             }
         }
         
-        let mensagem = \`Importação concluída! \${importados} transações importadas.\`;
-        if (duplicados > 0) mensagem += \` \${duplicados} duplicatas ignoradas.\`;
-        if (erros > 0) mensagem += \` \${erros} erros.\`;
+        let mensagem = 'Importação concluída! ' + importados + ' transações importadas.';
+        if (duplicados > 0) mensagem += ' ' + duplicados + ' duplicatas ignoradas.';
+        if (erros > 0) mensagem += ' ' + erros + ' erros.';
         
         showAlert(mensagem, importados > 0 ? 'success' : 'warning');
         
