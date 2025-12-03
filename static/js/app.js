@@ -2110,6 +2110,18 @@ async function loadLancamentos() {
         
         console.log('Lançamentos carregados:', data?.length || 0);
         
+        // Buscar conciliações para marcar lançamentos conciliados
+        const { data: conciliacoes, error: conciliacoesError } = await supabase
+            .from('conciliacoes')
+            .select('lancamento_id')
+            .eq('usuario_id', currentUser.id);
+        
+        if (conciliacoesError) {
+            console.error('Erro ao buscar conciliações:', conciliacoesError);
+        }
+        
+        const lancamentosConciliados = new Set((conciliacoes || []).map(c => c.lancamento_id));
+        
         const listEl = document.getElementById('lancamentos-list');
         
         // Se o elemento não existe (ex: não estamos na página de lançamentos), sair
@@ -2151,9 +2163,11 @@ async function loadLancamentos() {
             const descricaoBase = lanc.descricao.split(' (')[0]; // Remove info de parcela da descrição
             const parcelaDisplay = lanc.parcela_atual && lanc.total_parcelas ? `${lanc.parcela_atual}/${lanc.total_parcelas}` : '-';
             const isQuitacao = lanc.descricao.includes('Quitação');
+            const isConciliado = lancamentosConciliados.has(lanc.id);
+            const classeConciliado = isConciliado ? 'bg-success bg-opacity-10' : '';
             
             html += `
-                <tr>
+                <tr class="${classeConciliado}">
                     <td>${formatDate(lanc.data)}</td>
                     <td>${lanc.descricao}</td>
                     <td><span class="badge bg-secondary">${lanc.categorias ? lanc.categorias.nome : '-'}</span></td>
@@ -4358,8 +4372,8 @@ async function confirmarImportacaoOFX() {
     const selecionados = transacoesFiltradas.filter(t => t.selecionado);
     
     try {
-        // Buscar lançamentos existentes e IDs OFX já importados
-        const [lancamentosResult, ofxImportadosResult] = await Promise.all([
+        // Buscar lançamentos existentes, IDs OFX já importados e FITIDs conciliados
+        const [lancamentosResult, ofxImportadosResult, conciliacoesResult] = await Promise.all([
             supabase
                 .from('lancamentos')
                 .select('data, descricao, valor')
@@ -4367,14 +4381,21 @@ async function confirmarImportacaoOFX() {
             supabase
                 .from('ofx_importados')
                 .select('fitid')
+                .eq('usuario_id', currentUser.id),
+            supabase
+                .from('conciliacoes')
+                .select('fitid')
                 .eq('usuario_id', currentUser.id)
+                .not('fitid', 'is', null)
         ]);
         
         if (lancamentosResult.error) throw lancamentosResult.error;
         if (ofxImportadosResult.error) throw ofxImportadosResult.error;
+        if (conciliacoesResult.error) throw conciliacoesResult.error;
         
         const lancamentosExistentes = lancamentosResult.data || [];
         const fitidsImportados = new Set((ofxImportadosResult.data || []).map(r => r.fitid));
+        const fitidsConciliados = new Set((conciliacoesResult.data || []).map(r => r.fitid));
         
         let importados = 0;
         let duplicados = 0;
@@ -4385,8 +4406,8 @@ async function confirmarImportacaoOFX() {
         for (let i = 0; i < selecionados.length; i++) {
             const transacao = selecionados[i];
             
-            // Verificar se já foi importado pelo FITID
-            if (transacao.fitid && fitidsImportados.has(transacao.fitid)) {
+            // Verificar se já foi importado pelo FITID ou se já foi conciliado
+            if (transacao.fitid && (fitidsImportados.has(transacao.fitid) || fitidsConciliados.has(transacao.fitid))) {
                 duplicados++;
                 continue;
             }
