@@ -5430,7 +5430,7 @@ async function agruparLancamentosSelecionados() {
         const { data: grupoData, error: errorGrupo } = await supabase
             .from('lancamentos')
             .insert({
-                usuario_id: user.id,
+                usuario_id: currentUser.id,
                 tipo: tipo,
                 descricao: '📦 ' + descricao,
                 valor: valorTotal,
