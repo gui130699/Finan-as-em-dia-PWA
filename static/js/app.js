@@ -2245,7 +2245,7 @@ async function editarLancamento(id) {
         // Buscar dados do lançamento
         const { data, error } = await supabase
             .from('lancamentos')
-            .select('id, usuario_id, data, descricao, categoria_id, valor, tipo, status, conta_fixa_id, parcela_atual')
+            .select('id, usuario_id, data, descricao, categoria_id, valor, tipo, status, conta_fixa_id, parcela_atual, is_grupo')
             .eq('id', id)
             .single();
         
@@ -2255,6 +2255,8 @@ async function editarLancamento(id) {
         }
         
         console.log('Lançamento carregado:', data);
+        
+        const isGrupo = data.is_grupo === true;
         
         // Verificar se elementos existem
         const elemData = document.getElementById('lanc-data');
@@ -2280,6 +2282,19 @@ async function editarLancamento(id) {
         elemDescricao.value = data.descricao.split(' (')[0]; // Remove info de parcela
         elemCategoria.value = data.categoria_id;
         elemValorSimples.value = data.valor;
+        
+        // Se for grupo, bloquear campo de valor
+        if (isGrupo) {
+            elemValorSimples.disabled = true;
+            elemValorSimples.title = 'Valor calculado automaticamente pelos lançamentos do grupo';
+            const labelValor = elemValorSimples.previousElementSibling;
+            if (labelValor && labelValor.tagName === 'LABEL') {
+                labelValor.innerHTML = 'Valor (automático) <i class="bi bi-lock-fill text-muted"></i>';
+            }
+        } else {
+            elemValorSimples.disabled = false;
+            elemValorSimples.title = '';
+        }
         
         // Mudar botão para atualizar
         const form = document.querySelector('form');
@@ -5424,6 +5439,10 @@ async function agruparLancamentosSelecionados() {
         const tipo = valorTotal >= 0 ? 'receita' : 'despesa';
         valorTotal = Math.abs(valorTotal);
         
+        // Verificar se todos estão pagos
+        const todosPagos = lancamentos.every(l => l.status === 'pago');
+        const statusGrupo = todosPagos ? 'pago' : 'pendente';
+        
         // Criar lançamento agrupado
         const { data: grupoData, error: errorGrupo } = await supabase
             .from('lancamentos')
@@ -5434,7 +5453,7 @@ async function agruparLancamentosSelecionados() {
                 valor: valorTotal,
                 data: new Date().toISOString().split('T')[0],
                 categoria_id: lancamentos[0].categoria_id,
-                status: 'pago',
+                status: statusGrupo,
                 is_grupo: true
             })
             .select()
@@ -5661,14 +5680,55 @@ async function toggleStatusLancamentoGrupo(lancId, statusAtual, grupoId) {
         
         if (error) throw error;
         
+        // Atualizar status do grupo baseado nos lançamentos
+        await atualizarStatusGrupo(grupoId);
+        
         showAlert('Status alterado com sucesso!', 'success');
         
         // Reabrir modal com dados atualizados
         await verDetalhesGrupo(grupoId);
+        await loadLancamentos();
         
     } catch (err) {
         console.error('Erro ao alterar status:', err);
         showAlert('Erro ao alterar status: ' + err.message, 'danger');
+    }
+}
+
+async function atualizarStatusGrupo(grupoId) {
+    try {
+        // Buscar todos os lançamentos do grupo
+        const { data: agrupados, error: errorAgrupados } = await supabase
+            .from('lancamentos_agrupados')
+            .select('lancamento_id')
+            .eq('grupo_id', grupoId);
+        
+        if (errorAgrupados) throw errorAgrupados;
+        
+        const ids = agrupados.map(a => a.lancamento_id);
+        
+        const { data: lancamentos, error: errorLanc } = await supabase
+            .from('lancamentos')
+            .select('status')
+            .in('id', ids);
+        
+        if (errorLanc) throw errorLanc;
+        
+        // Verificar se todos estão pagos
+        const todosPagos = lancamentos.every(l => l.status === 'pago');
+        const novoStatusGrupo = todosPagos ? 'pago' : 'pendente';
+        
+        // Atualizar status do grupo
+        const { error: errorUpdate } = await supabase
+            .from('lancamentos')
+            .update({ status: novoStatusGrupo })
+            .eq('id', grupoId);
+        
+        if (errorUpdate) throw errorUpdate;
+        
+    } catch (err) {
+        console.error('Erro ao atualizar status do grupo:', err);
+        throw err;
     }
 }
 
@@ -5707,7 +5767,7 @@ async function removerLancamentoDoGrupo(lancId, grupoId) {
         const idsRestantes = restantes.map(r => r.lancamento_id);
         const { data: lancs, error: errorLancs } = await supabase
             .from('lancamentos')
-            .select('tipo, valor')
+            .select('tipo, valor, status')
             .in('id', idsRestantes);
         
         if (errorLancs) throw errorLancs;
@@ -5720,12 +5780,17 @@ async function removerLancamentoDoGrupo(lancId, grupoId) {
         const tipo = valorTotal >= 0 ? 'receita' : 'despesa';
         valorTotal = Math.abs(valorTotal);
         
-        // Atualizar grupo
+        // Verificar se todos estão pagos
+        const todosPagos = lancs.every(l => l.status === 'pago');
+        const statusGrupo = todosPagos ? 'pago' : 'pendente';
+        
+        // Atualizar grupo (valor, tipo e status)
         const { error: errorUpdate } = await supabase
             .from('lancamentos')
             .update({ 
                 valor: valorTotal,
-                tipo: tipo 
+                tipo: tipo,
+                status: statusGrupo
             })
             .eq('id', grupoId);
         
