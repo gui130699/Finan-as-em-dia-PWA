@@ -2167,14 +2167,14 @@ async function loadLancamentos() {
             const parcelaDisplay = lanc.parcela_atual && lanc.total_parcelas ? `${lanc.parcela_atual}/${lanc.total_parcelas}` : '-';
             const isQuitacao = lanc.descricao.includes('Quitação');
             const isConciliado = lancamentosConciliados.has(lanc.id);
-            const classeConciliado = isConciliado ? 'bg-success bg-opacity-10' : '';
+            const styleConciliado = isConciliado ? 'background-color: rgba(25, 135, 84, 0.1);' : '';
             
             if (isConciliado) {
                 console.log('Lançamento conciliado encontrado:', lanc.id, lanc.descricao);
             }
             
             html += `
-                <tr class="${classeConciliado}">
+                <tr style="${styleConciliado}">
                     <td>${formatDate(lanc.data)}</td>
                     <td>${lanc.descricao}</td>
                     <td><span class="badge bg-secondary">${lanc.categorias ? lanc.categorias.nome : '-'}</span></td>
@@ -4056,7 +4056,7 @@ async function initImportarOFX() {
     modoAgrupadoOFX = false;
     
     // Carregar categorias
-    await carregarCategorias();
+    await loadCategorias();
     
     // Se já tinha transações carregadas, reexibir
     if (transacoesOFX.length > 0) {
@@ -4639,7 +4639,7 @@ async function initConciliacao() {
     document.getElementById('mes-conciliacao').value = mesAtual;
     
     // Carregar categorias
-    await carregarCategorias();
+    await loadCategorias();
     
     // Carregar conciliações salvas do banco
     await carregarConciliacoesSalvas();
