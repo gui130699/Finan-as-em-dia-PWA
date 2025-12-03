@@ -3902,6 +3902,7 @@ function filtrarCategoriasRelatorio() {
 
 let transacoesOFX = [];
 let transacoesFiltradas = [];
+let modoAgrupadoOFX = false;
 
 function getImportarOFXHTML() {
     return `
@@ -3933,6 +3934,22 @@ function getImportarOFXHTML() {
                                 </select>
                             </div>
                             <div class="col-md-3 mb-3">
+                                <label class="form-label">Data Início</label>
+                                <input type="date" class="form-control" id="filtro-ofx-data-inicio" onchange="aplicarFiltrosOFX()">
+                            </div>
+                            <div class="col-md-3 mb-3">
+                                <label class="form-label">Data Fim</label>
+                                <input type="date" class="form-control" id="filtro-ofx-data-fim" onchange="aplicarFiltrosOFX()">
+                            </div>
+                            <div class="col-md-3 mb-3">
+                                <label class="form-label">Estabelecimento</label>
+                                <select class="form-select" id="filtro-ofx-estabelecimento" onchange="aplicarFiltrosOFX()">
+                                    <option value="">Todos</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-3 mb-3">
                                 <label class="form-label">Valor Mínimo</label>
                                 <input type="number" step="0.01" class="form-control" id="filtro-ofx-min" placeholder="0.00" onchange="aplicarFiltrosOFX()">
                             </div>
@@ -3941,25 +3958,23 @@ function getImportarOFXHTML() {
                                 <input type="number" step="0.01" class="form-control" id="filtro-ofx-max" placeholder="0.00" onchange="aplicarFiltrosOFX()">
                             </div>
                             <div class="col-md-3 mb-3">
-                                <label class="form-label">Buscar</label>
-                                <input type="text" class="form-control" id="filtro-ofx-busca" placeholder="Descrição..." oninput="aplicarFiltrosOFX()">
+                                <label class="form-label">Buscar Descrição</label>
+                                <input type="text" class="form-control" id="filtro-ofx-busca" placeholder="Buscar..." oninput="aplicarFiltrosOFX()">
+                            </div>
+                            <div class="col-md-3 mb-3">
+                                <label class="form-label">&nbsp;</label>
+                                <button class="btn btn-info w-100" onclick="toggleAgruparOFX()">
+                                    <i class="bi bi-collection"></i> <span id="btn-agrupar-text">Agrupar por Estabelecimento</span>
+                                </button>
                             </div>
                         </div>
                         <div class="row">
-                            <div class="col-md-4 mb-3">
-                                <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" id="filtro-ofx-agrupar" onchange="aplicarFiltrosOFX()">
-                                    <label class="form-check-label" for="filtro-ofx-agrupar">
-                                        <strong>Agrupar por Estabelecimento</strong>
-                                    </label>
-                                </div>
-                            </div>
-                            <div class="col-md-4 mb-3">
+                            <div class="col-md-6 mb-3">
                                 <button class="btn btn-primary w-100" onclick="selecionarTodosOFX()">
                                     <i class="bi bi-check-all"></i> Selecionar Todos
                                 </button>
                             </div>
-                            <div class="col-md-4 mb-3">
+                            <div class="col-md-6 mb-3">
                                 <button class="btn btn-secondary w-100" onclick="desmarcarTodosOFX()">
                                     <i class="bi bi-x"></i> Desmarcar Todos
                                 </button>
@@ -4006,6 +4021,7 @@ function processarArquivoOFX(event) {
             
             showAlert(transacoesOFX.length + ' transações encontradas!', 'success');
             document.getElementById('area-filtros').style.display = 'block';
+            preencherListaEstabelecimentos();
             aplicarFiltrosOFX();
         } catch (err) {
             console.error('Erro ao processar OFX:', err);
@@ -4077,22 +4093,53 @@ function extrairEstabelecimento(descricao) {
     return palavras.join(' ') || descricao.substring(0, 30);
 }
 
+function preencherListaEstabelecimentos() {
+    const estabelecimentos = new Set();
+    transacoesOFX.forEach(t => {
+        const est = extrairEstabelecimento(t.descricao);
+        if (est) estabelecimentos.add(est);
+    });
+    
+    const select = document.getElementById('filtro-ofx-estabelecimento');
+    select.innerHTML = '<option value="">Todos</option>';
+    
+    Array.from(estabelecimentos).sort().forEach(est => {
+        select.innerHTML += '<option value="' + est + '">' + est + '</option>';
+    });
+}
+
+function toggleAgruparOFX() {
+    modoAgrupadoOFX = !modoAgrupadoOFX;
+    const btnText = document.getElementById('btn-agrupar-text');
+    if (modoAgrupadoOFX) {
+        btnText.textContent = 'Visualização Agrupada';
+    } else {
+        btnText.textContent = 'Agrupar por Estabelecimento';
+    }
+    aplicarFiltrosOFX();
+}
+
 function aplicarFiltrosOFX() {
     const tipo = document.getElementById('filtro-ofx-tipo').value;
+    const dataInicio = document.getElementById('filtro-ofx-data-inicio').value;
+    const dataFim = document.getElementById('filtro-ofx-data-fim').value;
+    const estabelecimento = document.getElementById('filtro-ofx-estabelecimento').value;
     const min = parseFloat(document.getElementById('filtro-ofx-min').value) || 0;
     const max = parseFloat(document.getElementById('filtro-ofx-max').value) || Infinity;
     const busca = document.getElementById('filtro-ofx-busca').value.toLowerCase();
-    const agrupar = document.getElementById('filtro-ofx-agrupar').checked;
     
     // Filtrar transações
     transacoesFiltradas = transacoesOFX.filter(t => {
         if (tipo && t.tipo !== tipo) return false;
+        if (dataInicio && t.data < dataInicio) return false;
+        if (dataFim && t.data > dataFim) return false;
+        if (estabelecimento && extrairEstabelecimento(t.descricao) !== estabelecimento) return false;
         if (t.valor < min || t.valor > max) return false;
         if (busca && !t.descricao.toLowerCase().includes(busca)) return false;
         return true;
     });
     
-    if (agrupar) {
+    if (modoAgrupadoOFX) {
         displayTransacoesAgrupadasOFX();
     } else {
         displayTransacoesOFX();
