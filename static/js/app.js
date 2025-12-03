@@ -2130,9 +2130,14 @@ async function loadLancamentos() {
         }
         
         let html = '<div class="mb-3">';
-        html += '<button class="btn btn-success" onclick="agruparLancamentosSelecionados()" id="btn-agrupar" style="display:none;">';
-        html += '<i class="bi bi-collection"></i> Agrupar Selecionados';
+        html += '<div class="btn-group" role="group" id="btn-agrupar-group" style="display:none;">';
+        html += '<button class="btn btn-success" onclick="agruparLancamentosSelecionados()">';
+        html += '<i class="bi bi-collection"></i> Criar Novo Grupo';
         html += '</button>';
+        html += '<button class="btn btn-primary" onclick="adicionarAGrupoExistente()">';
+        html += '<i class="bi bi-plus-circle"></i> Adicionar a Grupo Existente';
+        html += '</button>';
+        html += '</div>';
         html += '<span id="contador-selecionados" class="ms-2 text-muted"></span>';
         html += '</div>';
         html += '<div class="table-responsive">';
@@ -5372,17 +5377,17 @@ function toggleSelectAllLancamentos(checked) {
 
 function atualizarSelecaoLancamentos() {
     const checkboxes = document.querySelectorAll('.lancamento-checkbox:checked');
-    const btnAgrupar = document.getElementById('btn-agrupar');
+    const btnAgruparGroup = document.getElementById('btn-agrupar-group');
     const contador = document.getElementById('contador-selecionados');
     const selectAll = document.getElementById('select-all-lancamentos');
     
     const qtd = checkboxes.length;
     
-    if (qtd >= 2) {
-        btnAgrupar.style.display = 'inline-block';
-        contador.textContent = qtd + ' lançamentos selecionados';
+    if (qtd >= 1) {
+        btnAgruparGroup.style.display = 'inline-flex';
+        contador.textContent = qtd + ' lançamento' + (qtd > 1 ? 's' : '') + ' selecionado' + (qtd > 1 ? 's' : '');
     } else {
-        btnAgrupar.style.display = 'none';
+        btnAgruparGroup.style.display = 'none';
         contador.textContent = '';
     }
     
@@ -5469,6 +5474,189 @@ async function agruparLancamentosSelecionados() {
     } catch (err) {
         console.error('Erro ao agrupar lançamentos:', err);
         showAlert('Erro ao agrupar lançamentos: ' + err.message, 'danger');
+    }
+}
+
+async function adicionarAGrupoExistente() {
+    const checkboxes = document.querySelectorAll('.lancamento-checkbox:checked');
+    
+    if (checkboxes.length < 1) {
+        showAlert('Selecione pelo menos 1 lançamento', 'warning');
+        return;
+    }
+    
+    try {
+        // Buscar grupos existentes
+        const { data: grupos, error } = await supabase
+            .from('lancamentos')
+            .select('id, descricao, valor, data, categorias(nome)')
+            .eq('usuario_id', currentUser.id)
+            .eq('is_grupo', true)
+            .order('data', { ascending: false });
+        
+        if (error) throw error;
+        
+        if (grupos.length === 0) {
+            showAlert('Não há grupos existentes. Crie um novo grupo primeiro.', 'info');
+            return;
+        }
+        
+        // Montar modal de seleção
+        let html = '<div class="modal fade" id="modal-selecao-grupo" tabindex="-1">';
+        html += '<div class="modal-dialog">';
+        html += '<div class="modal-content">';
+        html += '<div class="modal-header">';
+        html += '<h5 class="modal-title">Selecione o Grupo</h5>';
+        html += '<button type="button" class="btn-close" onclick="fecharModalSelecaoGrupo()"></button>';
+        html += '</div>';
+        html += '<div class="modal-body">';
+        html += '<p class="text-muted">Escolha o grupo ao qual deseja adicionar os lançamentos selecionados:</p>';
+        html += '<div class="list-group" id="lista-grupos-disponiveis">';
+        
+        grupos.forEach(g => {
+            html += '<button class="list-group-item list-group-item-action" onclick="confirmarAdicaoAGrupo(' + g.id + ')">';
+            html += '<div class="d-flex w-100 justify-content-between">';
+            html += '<h6 class="mb-1">' + g.descricao + '</h6>';
+            html += '<small>R$ ' + parseFloat(g.valor).toFixed(2) + '</small>';
+            html += '</div>';
+            html += '<small class="text-muted">' + (g.categorias ? g.categorias.nome : '-') + ' • ' + formatDate(g.data) + '</small>';
+            html += '</button>';
+        });
+        
+        html += '</div>';
+        html += '</div>';
+        html += '<div class="modal-footer">';
+        html += '<button type="button" class="btn btn-secondary" onclick="fecharModalSelecaoGrupo()">Cancelar</button>';
+        html += '</div>';
+        html += '</div>';
+        html += '</div>';
+        html += '</div>';
+        
+        // Remover modal anterior se existir
+        const modalExistente = document.getElementById('modal-selecao-grupo');
+        if (modalExistente) modalExistente.remove();
+        
+        // Adicionar modal ao DOM
+        document.body.insertAdjacentHTML('beforeend', html);
+        
+        // Mostrar modal
+        const modal = new bootstrap.Modal(document.getElementById('modal-selecao-grupo'));
+        modal.show();
+        
+    } catch (err) {
+        console.error('Erro ao buscar grupos:', err);
+        showAlert('Erro ao buscar grupos: ' + err.message, 'danger');
+    }
+}
+
+function fecharModalSelecaoGrupo() {
+    const modal = bootstrap.Modal.getInstance(document.getElementById('modal-selecao-grupo'));
+    if (modal) modal.hide();
+}
+
+async function confirmarAdicaoAGrupo(grupoId) {
+    const checkboxes = document.querySelectorAll('.lancamento-checkbox:checked');
+    const ids = [];
+    
+    checkboxes.forEach(cb => {
+        ids.push(parseInt(cb.value));
+    });
+    
+    try {
+        // Verificar se algum lançamento já está em outro grupo
+        const { data: jaAgrupados, error: errorCheck } = await supabase
+            .from('lancamentos_agrupados')
+            .select('lancamento_id')
+            .in('lancamento_id', ids);
+        
+        if (errorCheck) throw errorCheck;
+        
+        if (jaAgrupados.length > 0) {
+            const idsJaAgrupados = jaAgrupados.map(a => a.lancamento_id);
+            const idsNovos = ids.filter(id => !idsJaAgrupados.includes(id));
+            
+            if (idsNovos.length === 0) {
+                showAlert('Todos os lançamentos selecionados já estão em grupos', 'warning');
+                return;
+            }
+            
+            if (!confirm('Alguns lançamentos já estão em grupos e serão ignorados. Continuar com os ' + idsNovos.length + ' restantes?')) {
+                return;
+            }
+            
+            // Usar apenas IDs novos
+            ids.length = 0;
+            ids.push(...idsNovos);
+        }
+        
+        // Buscar dados dos lançamentos
+        const { data: lancamentos, error: errorLanc } = await supabase
+            .from('lancamentos')
+            .select('tipo, valor, status')
+            .in('id', ids);
+        
+        if (errorLanc) throw errorLanc;
+        
+        // Criar registros de agrupamento
+        const registrosAgrupamento = ids.map(id => ({
+            grupo_id: grupoId,
+            lancamento_id: id
+        }));
+        
+        const { error: errorInsert } = await supabase
+            .from('lancamentos_agrupados')
+            .insert(registrosAgrupamento);
+        
+        if (errorInsert) throw errorInsert;
+        
+        // Buscar lançamentos existentes do grupo
+        const { data: agrupados, error: errorAgrupados } = await supabase
+            .from('lancamentos_agrupados')
+            .select('lancamento_id')
+            .eq('grupo_id', grupoId);
+        
+        if (errorAgrupados) throw errorAgrupados;
+        
+        const todosIds = agrupados.map(a => a.lancamento_id);
+        
+        const { data: todosLancs, error: errorTodos } = await supabase
+            .from('lancamentos')
+            .select('tipo, valor, status')
+            .in('id', todosIds);
+        
+        if (errorTodos) throw errorTodos;
+        
+        // Recalcular valor total e status
+        let valorTotal = 0;
+        todosLancs.forEach(l => {
+            valorTotal += l.tipo === 'receita' ? l.valor : -l.valor;
+        });
+        
+        const tipo = valorTotal >= 0 ? 'receita' : 'despesa';
+        valorTotal = Math.abs(valorTotal);
+        
+        const todosPagos = todosLancs.every(l => l.status === 'pago');
+        const statusGrupo = todosPagos ? 'pago' : 'pendente';
+        
+        // Atualizar grupo
+        const { error: errorUpdate } = await supabase
+            .from('lancamentos')
+            .update({ 
+                valor: valorTotal,
+                tipo: tipo,
+                status: statusGrupo
+            })
+            .eq('id', grupoId);
+        
+        if (errorUpdate) throw errorUpdate;
+        
+        fecharModalSelecaoGrupo();
+        showAlert('Lançamentos adicionados ao grupo com sucesso!', 'success');
+        await loadLancamentos();
+        
+    } catch (err) {
+        console.error('Erro ao adicionar ao grupo:', err);
+        showAlert('Erro ao adicionar ao grupo: ' + err.message, 'danger');
     }
 }
 
@@ -5826,6 +6014,9 @@ window.gerarRelatorio = gerarRelatorio;
 window.toggleSelectAllLancamentos = toggleSelectAllLancamentos;
 window.atualizarSelecaoLancamentos = atualizarSelecaoLancamentos;
 window.agruparLancamentosSelecionados = agruparLancamentosSelecionados;
+window.adicionarAGrupoExistente = adicionarAGrupoExistente;
+window.confirmarAdicaoAGrupo = confirmarAdicaoAGrupo;
+window.fecharModalSelecaoGrupo = fecharModalSelecaoGrupo;
 window.verDetalhesGrupo = verDetalhesGrupo;
 window.desagrupar = desagrupar;
 window.fecharModalGrupo = fecharModalGrupo;
