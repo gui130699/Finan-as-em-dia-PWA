@@ -2164,7 +2164,7 @@ async function loadLancamentos() {
                 console.log('Lançamento conciliado ID:', lanc.id, 'Descrição:', lanc.descricao);
                 html += '<tr class="lancamento-conciliado" style="background-color: rgba(25, 135, 84, 0.15) !important;">';
             } else {
-                html += '<tr>';</
+                html += '<tr>';
             }
             html += '<td>' + formatDate(lanc.data) + '</td>';
             html += '<td>' + lanc.descricao + '</td>';
