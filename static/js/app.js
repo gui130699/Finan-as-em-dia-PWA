@@ -2159,13 +2159,13 @@ async function loadLancamentos() {
             const parcelaDisplay = lanc.parcela_atual && lanc.total_parcelas ? lanc.parcela_atual + '/' + lanc.total_parcelas : '-';
             const isQuitacao = lanc.descricao.includes('Quitação');
             const isConciliado = lancamentosConciliados.has(lanc.id);
-            const classeConciliado = isConciliado ? 'lancamento-conciliado' : '';
             
             if (isConciliado) {
-                console.log('Lançamento conciliado ID:', lanc.id, 'Descrição:', lanc.descricao, 'Classe:', classeConciliado);
+                console.log('Lançamento conciliado ID:', lanc.id, 'Descrição:', lanc.descricao);
+                html += '<tr class="lancamento-conciliado" style="background-color: rgba(25, 135, 84, 0.15) !important;">';
+            } else {
+                html += '<tr>';</
             }
-            
-            html += '<tr class="' + classeConciliado + '">';
             html += '<td>' + formatDate(lanc.data) + '</td>';
             html += '<td>' + lanc.descricao + '</td>';
             html += '<td><span class="badge bg-secondary">' + (lanc.categorias ? lanc.categorias.nome : '-') + '</span></td>';
@@ -4769,13 +4769,16 @@ async function carregarConciliacoesSalvas() {
     }
 }
 
-function processarArquivoConciliacao(event) {
+async function processarArquivoConciliacao(event) {
     const file = event.target.files[0];
     if (!file) return;
     
     const reader = new FileReader();
     reader.onload = async function(e) {
         try {
+            // Primeiro, recarregar conciliações do banco
+            await carregarConciliacoesSalvas();
+            
             const conteudo = e.target.result;
             const todasTransacoes = parseOFX(conteudo);
             
@@ -4784,24 +4787,36 @@ function processarArquivoConciliacao(event) {
                 return;
             }
             
-            // Filtrar transações já conciliadas
+            console.log('Total de transações no arquivo OFX:', todasTransacoes.length);
+            console.log('Conciliações no banco:', window.conciliacoesBanco ? window.conciliacoesBanco.length : 0);
+            
+            // Filtrar transações já conciliadas pelo FITID
+            const fitidsConciliados = new Set();
             if (window.conciliacoesBanco && window.conciliacoesBanco.length > 0) {
-                const fitidsConciliados = new Set(
-                    window.conciliacoesBanco.map(c => c.fitid).filter(f => f)
-                );
-                
-                transacoesConciliacao = todasTransacoes.filter(t => 
-                    !t.fitid || !fitidsConciliados.has(t.fitid)
-                );
-                
-                const removidos = todasTransacoes.length - transacoesConciliacao.length;
-                console.log('Transações no arquivo:', todasTransacoes.length, 
-                           'Já conciliadas removidas:', removidos,
-                           'Disponíveis:', transacoesConciliacao.length);
-                
+                window.conciliacoesBanco.forEach(c => {
+                    if (c.fitid) {
+                        fitidsConciliados.add(c.fitid);
+                        console.log('FITID conciliado:', c.fitid);
+                    }
+                });
+            }
+            
+            console.log('Total de FITIDs conciliados:', fitidsConciliados.size);
+            
+            transacoesConciliacao = todasTransacoes.filter(t => {
+                const jaConciliado = t.fitid && fitidsConciliados.has(t.fitid);
+                if (jaConciliado) {
+                    console.log('Transação REMOVIDA (já conciliada):', t.descricao, 'FITID:', t.fitid);
+                }
+                return !jaConciliado;
+            });
+            
+            const removidos = todasTransacoes.length - transacoesConciliacao.length;
+            console.log('Transações disponíveis:', transacoesConciliacao.length, 'Removidas:', removidos);
+            
+            if (removidos > 0) {
                 showAlert(transacoesConciliacao.length + ' transações disponíveis (' + removidos + ' já conciliadas removidas)', 'success');
             } else {
-                transacoesConciliacao = todasTransacoes;
                 showAlert(transacoesConciliacao.length + ' transações carregadas do extrato!', 'success');
             }
             
@@ -4898,27 +4913,12 @@ function limparFiltrosConciliacao() {
 function displayConciliacao() {
     document.getElementById('area-conciliacao').style.display = 'block';
     
-    // Criar set de FITIDs já salvos no banco
-    const fitidsSalvosNoBanco = new Set();
-    if (window.conciliacoesBanco && window.conciliacoesBanco.length > 0) {
-        window.conciliacoesBanco.forEach(c => {
-            if (c.fitid) fitidsSalvosNoBanco.add(c.fitid);
-        });
-    }
-    
-    // Exibir extrato filtrado
+    // Exibir extrato filtrado (já foram filtrados na carga)
     let htmlExtrato = '';
     let contadorFiltrado = 0;
     
     transacoesConciliacaoFiltradas.forEach((t) => {
         const index = transacoesConciliacao.indexOf(t);
-        
-        // Verificar se já foi salvo no banco
-        const jaSalvoNoBanco = t.fitid && fitidsSalvosNoBanco.has(t.fitid);
-        if (jaSalvoNoBanco) {
-            return; // Pular este extrato
-        }
-        
         const conciliado = Array.from(conciliacoesMapa.values()).some(c => c.extratosIndices && c.extratosIndices.includes(index));
         const selecionado = extratosSelecionados.has(index);
         let classes = '';
