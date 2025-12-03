@@ -166,6 +166,31 @@ CREATE POLICY app_config_policy ON app_config
     USING (usuario_id = current_setting('app.current_user_id', TRUE)::INTEGER);
 
 -- ============================================
+-- TABELA DE CONTROLE DE IMPORTAÇÕES OFX
+-- ============================================
+
+CREATE TABLE IF NOT EXISTS ofx_importados (
+    id SERIAL PRIMARY KEY,
+    usuario_id INTEGER NOT NULL,
+    fitid VARCHAR(255) NOT NULL,
+    data_importacao TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    
+    FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE,
+    UNIQUE (usuario_id, fitid)
+);
+
+-- Índice para otimização
+CREATE INDEX IF NOT EXISTS idx_ofx_importados_usuario ON ofx_importados(usuario_id);
+CREATE INDEX IF NOT EXISTS idx_ofx_importados_fitid ON ofx_importados(fitid);
+
+-- Política RLS para ofx_importados
+ALTER TABLE ofx_importados ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY ofx_importados_policy ON ofx_importados
+    FOR ALL
+    USING (usuario_id = current_setting('app.current_user_id', TRUE)::INTEGER);
+
+-- ============================================
 -- FIM DO SCRIPT
 -- ============================================
 

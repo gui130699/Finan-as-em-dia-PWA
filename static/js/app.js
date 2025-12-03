@@ -3985,27 +3985,9 @@ function getImportarOFXHTML() {
                 
                 <div class="card mb-4">
                     <div class="card-body">
-                        <h5 class="card-title mb-3">Configurações de Importação</h5>
-                        <div class="row">
-                            <div class="col-md-6 mb-3">
-                                <label class="form-label"><strong>Categoria</strong></label>
-                                <select class="form-select" id="categoria-importacao-ofx">
-                                    <option value="">Selecione uma categoria...</option>
-                                </select>
-                            </div>
-                            <div class="col-md-6 mb-3">
-                                <label class="form-label"><strong>Data do Lançamento</strong></label>
-                                <input type="date" class="form-control" id="data-importacao-ofx">
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="card mb-4">
-                    <div class="card-body">
                         <div class="d-flex justify-content-between align-items-center mb-3">
                             <h5 class="card-title mb-0">Transações Encontradas</h5>
-                            <button class="btn btn-success" onclick="importarSelecionadosOFX()">
+                            <button class="btn btn-success" onclick="abrirModalImportacaoOFX()">
                                 <i class="bi bi-download"></i> Importar Selecionados
                             </button>
                         </div>
@@ -4014,25 +3996,44 @@ function getImportarOFXHTML() {
                 </div>
             </div>
         </div>
+        
+        <!-- Modal de Importação -->
+        <div class="modal fade" id="modalImportacaoOFX" tabindex="-1">
+            <div class="modal-dialog modal-xl modal-dialog-scrollable">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Confirmar Importação</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div id="lista-importacao-ofx"></div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="button" class="btn btn-success" onclick="confirmarImportacaoOFX()">
+                            <i class="bi bi-check-lg"></i> Confirmar Importação
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+            </div>
+        </div>
     `;
 }
 
 async function initImportarOFX() {
-    transacoesOFX = [];
-    transacoesFiltradas = [];
     modoAgrupadoOFX = false;
     
     // Carregar categorias
     await carregarCategorias();
-    const selectCategoria = document.getElementById('categoria-importacao-ofx');
-    selectCategoria.innerHTML = '<option value="">Selecione uma categoria...</option>';
-    categorias.forEach(c => {
-        selectCategoria.innerHTML += '<option value="' + c.id + '">' + c.nome + ' (' + (c.tipo === 'receita' ? 'Receita' : 'Despesa') + ')</option>';
-    });
     
-    // Definir data padrão como hoje
-    const hoje = new Date().toISOString().split('T')[0];
-    document.getElementById('data-importacao-ofx').value = hoje;
+    // Se já tinha transações carregadas, reexibir
+    if (transacoesOFX.length > 0) {
+        document.getElementById('area-filtros').style.display = 'block';
+        preencherListaEstabelecimentos();
+        aplicarFiltrosOFX();
+    }
 }
 
 function processarArquivoOFX(event) {
@@ -4296,7 +4297,7 @@ function desmarcarTodosOFX() {
     aplicarFiltrosOFX();
 }
 
-async function importarSelecionadosOFX() {
+function abrirModalImportacaoOFX() {
     const selecionados = transacoesFiltradas.filter(t => t.selecionado);
     
     if (selecionados.length === 0) {
@@ -4304,46 +4305,111 @@ async function importarSelecionadosOFX() {
         return;
     }
     
-    // Validar categoria e data
-    const categoriaId = document.getElementById('categoria-importacao-ofx').value;
-    const dataLancamento = document.getElementById('data-importacao-ofx').value;
+    // Gerar HTML da lista de importação
+    const hoje = new Date().toISOString().split('T')[0];
+    let html = '<div class="table-responsive"><table class="table table-bordered"><thead><tr>';
+    html += '<th style="width: 200px;">Transação Original</th>';
+    html += '<th style="width: 300px;">Nova Descrição</th>';
+    html += '<th style="width: 150px;">Data</th>';
+    html += '<th style="width: 250px;">Categoria</th>';
+    html += '<th style="width: 120px;">Valor</th>';
+    html += '</tr></thead><tbody>';
     
-    if (!categoriaId) {
-        showAlert('Por favor, selecione uma categoria para importação!', 'warning');
-        return;
-    }
+    selecionados.forEach((t, index) => {
+        const tipo = t.tipo === 'CREDIT' ? 'receita' : 'despesa';
+        const tipoTexto = t.tipo === 'CREDIT' ? 'Crédito' : 'Débito';
+        const tipoClasse = t.tipo === 'CREDIT' ? 'text-success' : 'text-danger';
+        
+        // Filtrar categorias por tipo
+        const categoriasDoTipo = categorias.filter(c => c.tipo === tipo);
+        
+        html += '<tr>';
+        html += '<td><small class="' + tipoClasse + '"><strong>' + tipoTexto + '</strong></small><br>' + t.descricao + '</td>';
+        html += '<td><input type="text" class="form-control form-control-sm" id="desc-' + index + '" placeholder="Manter descrição original"></td>';
+        html += '<td><input type="date" class="form-control form-control-sm" id="data-' + index + '" value="' + hoje + '" required></td>';
+        html += '<td><select class="form-select form-select-sm" id="cat-' + index + '" required>';
+        html += '<option value="">Selecionar...</option>';
+        categoriasDoTipo.forEach(c => {
+            html += '<option value="' + c.id + '">' + c.nome + '</option>';
+        });
+        html += '</select></td>';
+        html += '<td class="' + tipoClasse + '"><strong>R$ ' + t.valor.toFixed(2) + '</strong></td>';
+        html += '</tr>';
+    });
     
-    if (!dataLancamento) {
-        showAlert('Por favor, selecione uma data para o lançamento!', 'warning');
-        return;
-    }
+    html += '</tbody></table></div>';
+    
+    document.getElementById('lista-importacao-ofx').innerHTML = html;
+    
+    const modal = new bootstrap.Modal(document.getElementById('modalImportacaoOFX'));
+    modal.show();
+}
+
+async function confirmarImportacaoOFX() {
+    const selecionados = transacoesFiltradas.filter(t => t.selecionado);
     
     try {
-        // Buscar lançamentos existentes para evitar duplicatas
-        const { data: lancamentosExistentes, error: erroBusca } = await supabase
-            .from('lancamentos')
-            .select('data, descricao, valor')
-            .eq('usuario_id', currentUser.id);
+        // Buscar lançamentos existentes e IDs OFX já importados
+        const [lancamentosResult, ofxImportadosResult] = await Promise.all([
+            supabase
+                .from('lancamentos')
+                .select('data, descricao, valor')
+                .eq('usuario_id', currentUser.id),
+            supabase
+                .from('ofx_importados')
+                .select('fitid')
+                .eq('usuario_id', currentUser.id)
+        ]);
         
-        if (erroBusca) throw erroBusca;
+        if (lancamentosResult.error) throw lancamentosResult.error;
+        if (ofxImportadosResult.error) throw ofxImportadosResult.error;
+        
+        const lancamentosExistentes = lancamentosResult.data || [];
+        const fitidsImportados = new Set((ofxImportadosResult.data || []).map(r => r.fitid));
         
         let importados = 0;
         let duplicados = 0;
         let erros = 0;
+        const lancamentosParaInserir = [];
+        const fitidsParaRegistrar = [];
         
-        // Buscar tipo da categoria selecionada
-        const categoriaSelecionada = categorias.find(c => c.id == categoriaId);
-        if (!categoriaSelecionada) {
-            showAlert('Categoria inválida!', 'danger');
-            return;
-        }
-        
-        for (const transacao of selecionados) {
-            // Verificar duplicata (mesma data, descrição similar e valor)
+        for (let i = 0; i < selecionados.length; i++) {
+            const transacao = selecionados[i];
+            
+            // Verificar se já foi importado pelo FITID
+            if (transacao.fitid && fitidsImportados.has(transacao.fitid)) {
+                duplicados++;
+                continue;
+            }
+            
+            // Pegar dados do formulário
+            const novaDescricao = document.getElementById('desc-' + i).value.trim();
+            const data = document.getElementById('data-' + i).value;
+            const categoriaId = document.getElementById('cat-' + i).value;
+            
+            if (!categoriaId) {
+                erros++;
+                continue;
+            }
+            
+            if (!data) {
+                erros++;
+                continue;
+            }
+            
+            const descricaoFinal = novaDescricao || transacao.descricao;
+            const categoriaSelecionada = categorias.find(c => c.id == categoriaId);
+            
+            if (!categoriaSelecionada) {
+                erros++;
+                continue;
+            }
+            
+            // Verificar duplicata por descrição e valor
             const isDuplicado = lancamentosExistentes.some(l => {
-                return l.data === dataLancamento && 
+                return l.data === data && 
                        Math.abs(parseFloat(l.valor) - transacao.valor) < 0.01 &&
-                       l.descricao.toLowerCase().includes(transacao.descricao.toLowerCase().substring(0, 20));
+                       l.descricao.toLowerCase() === descricaoFinal.toLowerCase();
             });
             
             if (isDuplicado) {
@@ -4351,28 +4417,49 @@ async function importarSelecionadosOFX() {
                 continue;
             }
             
-            // Inserir lançamento com a categoria e data escolhidas
+            // Adicionar na lista para inserir
+            lancamentosParaInserir.push({
+                usuario_id: currentUser.id,
+                data: data,
+                descricao: descricaoFinal,
+                categoria_id: categoriaId,
+                valor: transacao.valor,
+                tipo: categoriaSelecionada.tipo,
+                status: 'pago',
+                conta_fixa_id: null,
+                parcela_atual: null,
+                total_parcelas: null
+            });
+            
+            // Registrar FITID para evitar duplicação futura
+            if (transacao.fitid) {
+                fitidsParaRegistrar.push({
+                    usuario_id: currentUser.id,
+                    fitid: transacao.fitid,
+                    data_importacao: new Date().toISOString()
+                });
+            }
+        }
+        
+        // Inserir em lote
+        if (lancamentosParaInserir.length > 0) {
             const { error: erroInsert } = await supabase
                 .from('lancamentos')
-                .insert({
-                    usuario_id: currentUser.id,
-                    data: dataLancamento,
-                    descricao: transacao.descricao,
-                    categoria_id: categoriaId,
-                    valor: transacao.valor,
-                    tipo: categoriaSelecionada.tipo,
-                    status: 'pago',
-                    conta_fixa_id: null,
-                    parcela_atual: null,
-                    total_parcelas: null
-                });
+                .insert(lancamentosParaInserir);
             
             if (erroInsert) {
                 console.error('Erro ao importar:', erroInsert);
-                erros++;
-            } else {
-                importados++;
+                throw erroInsert;
             }
+            
+            importados = lancamentosParaInserir.length;
+        }
+        
+        // Registrar FITIDs
+        if (fitidsParaRegistrar.length > 0) {
+            await supabase
+                .from('ofx_importados')
+                .insert(fitidsParaRegistrar);
         }
         
         let mensagem = 'Importação concluída! ' + importados + ' transações importadas.';
@@ -4380,6 +4467,9 @@ async function importarSelecionadosOFX() {
         if (erros > 0) mensagem += ' ' + erros + ' erros.';
         
         showAlert(mensagem, importados > 0 ? 'success' : 'warning');
+        
+        // Fechar modal
+        bootstrap.Modal.getInstance(document.getElementById('modalImportacaoOFX')).hide();
         
         // Limpar seleções
         transacoesFiltradas.forEach(t => t.selecionado = false);
