@@ -2167,7 +2167,7 @@ async function loadLancamentos() {
             const parcelaDisplay = lanc.parcela_atual && lanc.total_parcelas ? `${lanc.parcela_atual}/${lanc.total_parcelas}` : '-';
             const isQuitacao = lanc.descricao.includes('Quitação');
             const isConciliado = lancamentosConciliados.has(lanc.id);
-            const styleAttr = isConciliado ? ' style="background-color: rgba(25, 135, 84, 0.1);"' : '';
+            const styleAttr = isConciliado ? ' style="background-color: rgba(25, 135, 84, 0.15) !important;"' : '';
             
             if (isConciliado) {
                 console.log('Lançamento conciliado encontrado:', lanc.id, lanc.descricao, 'styleAttr:', styleAttr);
@@ -4568,6 +4568,16 @@ function getConciliacaoHTML() {
                 </div>
             </div>
             
+            <!-- Conciliações Salvas -->
+            <div class="card mb-4" id="card-conciliacoes-salvas">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0"><i class="bi bi-list-check"></i> Conciliações Salvas</h5>
+                </div>
+                <div class="card-body">
+                    <div id="lista-conciliacoes-salvas"></div>
+                </div>
+            </div>
+            
             <div id="area-conciliacao" style="display: none;">
                 <div class="row">
                     <div class="col-md-6">
@@ -4648,11 +4658,75 @@ async function initConciliacao() {
     // Carregar conciliações salvas do banco
     await carregarConciliacoesSalvas();
     
+    // Exibir conciliações salvas
+    await exibirConciliacoesSalvas();
+    
     // Se já tinha transações de conciliação, recarregar
     if (transacoesConciliacao.length > 0) {
         await carregarLancamentosConciliacao();
         aplicarFiltrosConciliacao();
         displayConciliacao();
+    }
+}
+
+async function exibirConciliacoesSalvas() {
+    try {
+        const { data: conciliacoes, error } = await supabase
+            .from('conciliacoes')
+            .select('*, lancamentos(id, descricao, valor, data, tipo)')
+            .eq('usuario_id', currentUser.id)
+            .order('data_conciliacao', { ascending: false });
+        
+        if (error) throw error;
+        
+        const container = document.getElementById('lista-conciliacoes-salvas');
+        
+        if (!conciliacoes || conciliacoes.length === 0) {
+            container.innerHTML = '<p class="text-muted">Nenhuma conciliação salva ainda.</p>';
+            return;
+        }
+        
+        // Agrupar por lançamento
+        const porLancamento = {};
+        conciliacoes.forEach(c => {
+            if (!porLancamento[c.lancamento_id]) {
+                porLancamento[c.lancamento_id] = {
+                    lancamento: c.lancamentos,
+                    extratos: []
+                };
+            }
+            porLancamento[c.lancamento_id].extratos.push(c);
+        });
+        
+        let html = '<div class="table-responsive"><table class="table table-sm table-hover">';
+        html += '<thead><tr>';
+        html += '<th>Lançamento</th>';
+        html += '<th>Valor</th>';
+        html += '<th>Extratos Vinculados</th>';
+        html += '<th>Ações</th>';
+        html += '</tr></thead><tbody>';
+        
+        Object.values(porLancamento).forEach(item => {
+            if (!item.lancamento) return;
+            
+            const lanc = item.lancamento;
+            html += '<tr>';
+            html += '<td>' + lanc.descricao + '<br><small class="text-muted">' + formatarData(lanc.data) + '</small></td>';
+            html += '<td><strong>R$ ' + parseFloat(lanc.valor).toFixed(2) + '</strong></td>';
+            html += '<td><span class="badge bg-info">' + item.extratos.length + ' extrato(s)</span><br>';
+            item.extratos.forEach(e => {
+                html += '<small>' + e.descricao_extrato + ' - R$ ' + e.valor_extrato.toFixed(2) + '</small><br>';
+            });
+            html += '</td>';
+            html += '<td><button class="btn btn-sm btn-danger" onclick="excluirConciliacao(' + lanc.id + ')"><i class="bi bi-trash"></i></button></td>';
+            html += '</tr>';
+        });
+        
+        html += '</tbody></table></div>';
+        container.innerHTML = html;
+        
+    } catch (err) {
+        console.error('Erro ao exibir conciliações salvas:', err);
     }
 }
 
@@ -5009,6 +5083,32 @@ function desconciliarLancamento(lancamentoId) {
         }
     }
     displayConciliacao();
+}
+
+async function excluirConciliacao(lancamentoId) {
+    if (!confirm('Deseja realmente excluir esta conciliação?')) return;
+    
+    try {
+        const { error } = await supabase
+            .from('conciliacoes')
+            .delete()
+            .eq('usuario_id', currentUser.id)
+            .eq('lancamento_id', lancamentoId);
+        
+        if (error) throw error;
+        
+        showAlert('Conciliação excluída com sucesso!', 'success');
+        await exibirConciliacoesSalvas();
+        
+        // Recarregar lançamentos se estiver na página
+        if (currentPage === 'lancamentos') {
+            await loadLancamentos();
+        }
+        
+    } catch (err) {
+        console.error('Erro ao excluir conciliação:', err);
+        showAlert('Erro ao excluir conciliação: ' + err.message, 'danger');
+    }
 }
 
 async function salvarConciliacoes() {
