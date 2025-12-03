@@ -4497,6 +4497,8 @@ async function confirmarImportacaoOFX() {
 let transacoesConciliacao = [];
 let lancamentosConciliacao = [];
 let conciliacoesMapa = new Map();
+let extratosSelecionados = new Set();
+let lancamentoSelecionado = null;
 
 function getConciliacaoHTML() {
     return `
@@ -4524,8 +4526,9 @@ function getConciliacaoHTML() {
                 <div class="row">
                     <div class="col-md-6">
                         <div class="card mb-4">
-                            <div class="card-header bg-primary text-white">
+                            <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
                                 <h5 class="mb-0">Extrato Bancário (OFX)</h5>
+                                <span id="contador-extrato-selecionado" class="badge bg-warning text-dark">0 selecionados</span>
                             </div>
                             <div class="card-body" style="max-height: 600px; overflow-y: auto;">
                                 <div id="lista-extrato-conciliacao"></div>
@@ -4535,7 +4538,7 @@ function getConciliacaoHTML() {
                     
                     <div class="col-md-6">
                         <div class="card mb-4">
-                            <div class="card-header bg-success text-white">
+                            <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
                                 <h5 class="mb-0">Lançamentos no Sistema</h5>
                             </div>
                             <div class="card-body" style="max-height: 600px; overflow-y: auto;">
@@ -4584,7 +4587,8 @@ function getConciliacaoHTML() {
 }
 
 async function initConciliacao() {
-    conciliacoesMapa.clear();
+    extratosSelecionados.clear();
+    lancamentoSelecionado = null;
     
     // Definir mês padrão como atual
     const hoje = new Date();
@@ -4666,8 +4670,15 @@ function displayConciliacao() {
     // Exibir extrato
     let htmlExtrato = '';
     transacoesConciliacao.forEach((t, index) => {
-        const conciliado = Array.from(conciliacoesMapa.values()).some(c => c.extratoIndex === index);
-        const classes = conciliado ? 'border-success bg-success bg-opacity-10' : '';
+        const conciliado = Array.from(conciliacoesMapa.values()).some(c => c.extratosIndices && c.extratosIndices.includes(index));
+        const selecionado = extratosSelecionados.has(index);
+        let classes = '';
+        if (conciliado) {
+            classes = 'border-success bg-success bg-opacity-10';
+        } else if (selecionado) {
+            classes = 'border-warning bg-warning bg-opacity-10';
+        }
+        
         const tipoClasse = t.tipo === 'CREDIT' ? 'text-success' : 'text-danger';
         const tipoTexto = t.tipo === 'CREDIT' ? 'Crédito' : 'Débito';
         
@@ -4681,14 +4692,19 @@ function displayConciliacao() {
         htmlExtrato += '</div>';
         htmlExtrato += '<div class="text-end">';
         htmlExtrato += '<strong class="' + tipoClasse + '">R$ ' + t.valor.toFixed(2) + '</strong><br>';
-        if (!conciliado) {
-            htmlExtrato += '<button class="btn btn-sm btn-outline-primary" onclick="selecionarExtrato(' + index + ')">Selecionar</button>';
-        } else {
+        if (conciliado) {
             htmlExtrato += '<button class="btn btn-sm btn-outline-secondary" onclick="desconciliar(' + index + ')">Desfazer</button>';
+        } else if (selecionado) {
+            htmlExtrato += '<button class="btn btn-sm btn-warning" onclick="desselecionarExtrato(' + index + ')">Desmarcar</button>';
+        } else {
+            htmlExtrato += '<button class="btn btn-sm btn-outline-primary" onclick="selecionarExtrato(' + index + ')">Selecionar</button>';
         }
         htmlExtrato += '</div></div></div></div>';
     });
     document.getElementById('lista-extrato-conciliacao').innerHTML = htmlExtrato || '<p class="text-muted">Nenhuma transação no extrato</p>';
+    
+    // Atualizar contador de selecionados
+    document.getElementById('contador-extrato-selecionado').textContent = extratosSelecionados.size + ' selecionados';
     
     // Exibir lançamentos
     let htmlLancamentos = '';
@@ -4722,49 +4738,40 @@ function displayConciliacao() {
     document.getElementById('contador-conciliacoes').textContent = conciliacoesMapa.size + ' conciliações realizadas';
 }
 
-let extratoSelecionado = null;
-let lancamentoSelecionado = null;
-
 function selecionarExtrato(index) {
-    extratoSelecionado = index;
-    
-    // Destacar selecionado
-    document.querySelectorAll('[id^="extrato-"]').forEach(el => {
-        el.classList.remove('border-primary', 'border-3');
-    });
-    document.getElementById('extrato-' + index).classList.add('border-primary', 'border-3');
-    
-    // Se já tem lançamento selecionado, conciliar
-    if (lancamentoSelecionado !== null) {
-        conciliar();
-    }
+    extratosSelecionados.add(index);
+    displayConciliacao();
+}
+
+function desselecionarExtrato(index) {
+    extratosSelecionados.delete(index);
+    displayConciliacao();
 }
 
 function selecionarLancamento(id) {
-    lancamentoSelecionado = id;
-    
-    // Destacar selecionado
-    document.querySelectorAll('[id^="lancamento-"]').forEach(el => {
-        el.classList.remove('border-primary', 'border-3');
-    });
-    document.getElementById('lancamento-' + id).classList.add('border-primary', 'border-3');
-    
-    // Se já tem extrato selecionado, conciliar
-    if (extratoSelecionado !== null) {
-        conciliar();
+    if (extratosSelecionados.size === 0) {
+        showAlert('Selecione pelo menos uma transação do extrato primeiro!', 'warning');
+        return;
     }
+    
+    lancamentoSelecionado = id;
+    conciliar();
 }
 
 function conciliar() {
-    if (extratoSelecionado === null || lancamentoSelecionado === null) return;
+    if (extratosSelecionados.size === 0 || lancamentoSelecionado === null) return;
     
-    const chave = 'E' + extratoSelecionado + '-L' + lancamentoSelecionado;
+    // Criar chave única para a conciliação
+    const extratosArray = Array.from(extratosSelecionados).sort();
+    const chave = 'L' + lancamentoSelecionado + '-E' + extratosArray.join(',');
+    
     conciliacoesMapa.set(chave, {
-        extratoIndex: extratoSelecionado,
+        extratosIndices: extratosArray,
         lancamentoId: lancamentoSelecionado
     });
     
-    extratoSelecionado = null;
+    // Limpar seleções
+    extratosSelecionados.clear();
     lancamentoSelecionado = null;
     
     displayConciliacao();
@@ -4772,7 +4779,7 @@ function conciliar() {
 
 function desconciliar(extratoIndex) {
     for (let [chave, valor] of conciliacoesMapa.entries()) {
-        if (valor.extratoIndex === extratoIndex) {
+        if (valor.extratosIndices && valor.extratosIndices.includes(extratoIndex)) {
             conciliacoesMapa.delete(chave);
             break;
         }
@@ -4800,20 +4807,24 @@ async function salvarConciliacoes() {
         const registros = [];
         
         for (let [chave, valor] of conciliacoesMapa.entries()) {
-            const transacao = transacoesConciliacao[valor.extratoIndex];
             const lancamento = lancamentosConciliacao.find(l => l.id === valor.lancamentoId);
+            if (!lancamento) continue;
             
-            if (!transacao || !lancamento) continue;
-            
-            registros.push({
-                usuario_id: currentUser.id,
-                lancamento_id: lancamento.id,
-                fitid: transacao.fitid || null,
-                data_extrato: transacao.data,
-                valor_extrato: transacao.valor,
-                descricao_extrato: transacao.descricao,
-                data_conciliacao: new Date().toISOString()
-            });
+            // Processar cada transação do extrato vinculada a este lançamento
+            for (const extratoIndex of valor.extratosIndices) {
+                const transacao = transacoesConciliacao[extratoIndex];
+                if (!transacao) continue;
+                
+                registros.push({
+                    usuario_id: currentUser.id,
+                    lancamento_id: lancamento.id,
+                    fitid: transacao.fitid || null,
+                    data_extrato: transacao.data,
+                    valor_extrato: transacao.valor,
+                    descricao_extrato: transacao.descricao,
+                    data_conciliacao: new Date().toISOString()
+                });
+            }
         }
         
         if (registros.length > 0) {
@@ -4836,8 +4847,11 @@ async function salvarConciliacoes() {
 }
 
 function mostrarNaoConciliados() {
-    const extratosConciliados = Array.from(conciliacoesMapa.values()).map(c => c.extratoIndex);
-    const naoConciliados = transacoesConciliacao.filter((t, i) => !extratosConciliados.includes(i));
+    const extratosConciliados = new Set();
+    Array.from(conciliacoesMapa.values()).forEach(c => {
+        c.extratosIndices.forEach(idx => extratosConciliados.add(idx));
+    });
+    const naoConciliados = transacoesConciliacao.filter((t, i) => !extratosConciliados.has(i));
     
     if (naoConciliados.length === 0) {
         showAlert('Todas as transações foram conciliadas!', 'success');
