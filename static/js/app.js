@@ -5399,20 +5399,10 @@ async function agruparLancamentosSelecionados() {
         return;
     }
     
-    // Verificar se todos são da mesma categoria
-    const categorias = new Set();
     const ids = [];
-    
     checkboxes.forEach(cb => {
-        const categoria = cb.getAttribute('data-categoria');
-        categorias.add(categoria);
         ids.push(parseInt(cb.value));
     });
-    
-    if (categorias.size > 1) {
-        showAlert('Todos os lançamentos devem ser da mesma categoria', 'warning');
-        return;
-    }
     
     // Pedir descrição do grupo
     const descricao = prompt('Digite uma descrição para o agrupamento:');
