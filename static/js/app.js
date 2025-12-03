@@ -175,6 +175,10 @@ async function showPage(page) {
             app.innerHTML = getRelatoriosHTML();
             await loadRelatorios();
             break;
+        case 'importar_ofx':
+            app.innerHTML = getImportarOFXHTML();
+            await initImportarOFX();
+            break;
         case 'ajuda':
             app.innerHTML = getAjudaHTML();
             break;
@@ -768,6 +772,11 @@ function getNavbar(activePage) {
                         <li class="nav-item">
                             <a class="nav-link ${activePage === 'relatorios' ? 'active' : ''}" href="#" onclick="showPage('relatorios')">
                                 <i class="bi bi-file-earmark-bar-graph"></i> Relatórios
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link ${activePage === 'importar_ofx' ? 'active' : ''}" href="#" onclick="showPage('importar_ofx')">
+                                <i class="bi bi-file-earmark-arrow-up"></i> Importar OFX
                             </a>
                         </li>
                         <li class="nav-item">
@@ -3885,6 +3894,427 @@ function filtrarCategoriasRelatorio() {
     // Atualizar o select
     selectCategoria.innerHTML = '<option value="">Todas</option>' +
         categoriasFiltradas.map(c => `<option value="${c.id}">${c.nome} (${c.tipo === 'receita' ? 'Receita' : 'Despesa'})</option>`).join('');
+}
+
+// ============================================
+// IMPORTAÇÃO OFX
+// ============================================
+
+let transacoesOFX = [];
+let transacoesFiltradas = [];
+
+function getImportarOFXHTML() {
+    return `
+        ${getNavbar('importar_ofx')}
+        <div class="container mt-4">
+            <h2><i class="bi bi-file-earmark-arrow-up"></i> Importar Extrato OFX</h2>
+            
+            <div class="card mb-4">
+                <div class="card-body">
+                    <h5 class="card-title">Selecionar Arquivo OFX</h5>
+                    <div class="mb-3">
+                        <input type="file" class="form-control" id="arquivo-ofx" accept=".ofx" onchange="processarArquivoOFX(event)">
+                        <small class="text-muted">Selecione um arquivo OFX do seu banco para importar transações</small>
+                    </div>
+                </div>
+            </div>
+            
+            <div id="area-filtros" style="display: none;">
+                <div class="card mb-4">
+                    <div class="card-body">
+                        <h5 class="card-title">Filtros</h5>
+                        <div class="row">
+                            <div class="col-md-3 mb-3">
+                                <label class="form-label">Tipo</label>
+                                <select class="form-select" id="filtro-ofx-tipo" onchange="aplicarFiltrosOFX()">
+                                    <option value="">Todos</option>
+                                    <option value="CREDIT">Créditos</option>
+                                    <option value="DEBIT">Débitos</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3 mb-3">
+                                <label class="form-label">Valor Mínimo</label>
+                                <input type="number" step="0.01" class="form-control" id="filtro-ofx-min" placeholder="0.00" onchange="aplicarFiltrosOFX()">
+                            </div>
+                            <div class="col-md-3 mb-3">
+                                <label class="form-label">Valor Máximo</label>
+                                <input type="number" step="0.01" class="form-control" id="filtro-ofx-max" placeholder="0.00" onchange="aplicarFiltrosOFX()">
+                            </div>
+                            <div class="col-md-3 mb-3">
+                                <label class="form-label">Buscar</label>
+                                <input type="text" class="form-control" id="filtro-ofx-busca" placeholder="Descrição..." oninput="aplicarFiltrosOFX()">
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-4 mb-3">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="filtro-ofx-agrupar" onchange="aplicarFiltrosOFX()">
+                                    <label class="form-check-label" for="filtro-ofx-agrupar">
+                                        <strong>Agrupar por Estabelecimento</strong>
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <button class="btn btn-primary w-100" onclick="selecionarTodosOFX()">
+                                    <i class="bi bi-check-all"></i> Selecionar Todos
+                                </button>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <button class="btn btn-secondary w-100" onclick="desmarcarTodosOFX()">
+                                    <i class="bi bi-x"></i> Desmarcar Todos
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="card mb-4">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h5 class="card-title mb-0">Transações Encontradas</h5>
+                            <button class="btn btn-success" onclick="importarSelecionadosOFX()">
+                                <i class="bi bi-download"></i> Importar Selecionados
+                            </button>
+                        </div>
+                        <div id="lista-transacoes-ofx"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+async function initImportarOFX() {
+    transacoesOFX = [];
+    transacoesFiltradas = [];
+}
+
+function processarArquivoOFX(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        try {
+            const conteudo = e.target.result;
+            transacoesOFX = parseOFX(conteudo);
+            
+            if (transacoesOFX.length === 0) {
+                showAlert('Nenhuma transação encontrada no arquivo OFX', 'warning');
+                return;
+            }
+            
+            showAlert(\`\${transacoesOFX.length} transações encontradas!\`, 'success');
+            document.getElementById('area-filtros').style.display = 'block';
+            aplicarFiltrosOFX();
+        } catch (err) {
+            console.error('Erro ao processar OFX:', err);
+            showAlert('Erro ao processar arquivo OFX: ' + err.message, 'danger');
+        }
+    };
+    reader.readAsText(file);
+}
+
+function parseOFX(conteudo) {
+    const transacoes = [];
+    
+    // Extrair todas as transações (STMTTRN)
+    const regex = /<STMTTRN>(.*?)<\/STMTTRN>/gs;
+    let match;
+    
+    while ((match = regex.exec(conteudo)) !== null) {
+        const trn = match[1];
+        
+        // Extrair campos
+        const tipo = extrairCampoOFX(trn, 'TRNTYPE');
+        const data = extrairCampoOFX(trn, 'DTPOSTED');
+        const valor = parseFloat(extrairCampoOFX(trn, 'TRNAMT'));
+        const fitid = extrairCampoOFX(trn, 'FITID');
+        const memo = extrairCampoOFX(trn, 'MEMO') || extrairCampoOFX(trn, 'NAME') || 'Sem descrição';
+        
+        if (data && valor !== 0) {
+            // Converter data YYYYMMDD para YYYY-MM-DD
+            const dataFormatada = data.substring(0, 4) + '-' + data.substring(4, 6) + '-' + data.substring(6, 8);
+            
+            // Extrair estabelecimento (primeira parte antes de números ou caracteres especiais)
+            const estabelecimento = extrairEstabelecimento(memo);
+            
+            transacoes.push({
+                id: fitid || Date.now() + Math.random(),
+                tipo: tipo,
+                data: dataFormatada,
+                valor: Math.abs(valor),
+                valorOriginal: valor,
+                descricao: memo.trim(),
+                estabelecimento: estabelecimento,
+                selecionado: false
+            });
+        }
+    }
+    
+    return transacoes.sort((a, b) => new Date(b.data) - new Date(a.data));
+}
+
+function extrairCampoOFX(texto, campo) {
+    const regex = new RegExp(\`<\${campo}>(.*?)(?:<|\r|\n)\`, 'i');
+    const match = texto.match(regex);
+    return match ? match[1].trim() : '';
+}
+
+function extrairEstabelecimento(descricao) {
+    // Remove números, datas e caracteres especiais para extrair o nome do estabelecimento
+    let estabelecimento = descricao
+        .replace(/\\d{2}\\/\\d{2}\\/\\d{2,4}/g, '') // Remove datas
+        .replace(/\\d{2}\\/\\d{2}/g, '') // Remove datas parciais
+        .replace(/\\d{2}:\\d{2}/g, '') // Remove horários
+        .replace(/[0-9]+/g, '') // Remove números
+        .replace(/[^a-zA-ZÀ-ÿ\\s]/g, ' ') // Remove caracteres especiais
+        .replace(/\\s+/g, ' ') // Remove espaços duplicados
+        .trim();
+    
+    // Pegar primeiras palavras (máximo 3)
+    const palavras = estabelecimento.split(' ').filter(p => p.length > 2).slice(0, 3);
+    return palavras.join(' ') || descricao.substring(0, 30);
+}
+
+function aplicarFiltrosOFX() {
+    const tipo = document.getElementById('filtro-ofx-tipo').value;
+    const min = parseFloat(document.getElementById('filtro-ofx-min').value) || 0;
+    const max = parseFloat(document.getElementById('filtro-ofx-max').value) || Infinity;
+    const busca = document.getElementById('filtro-ofx-busca').value.toLowerCase();
+    const agrupar = document.getElementById('filtro-ofx-agrupar').checked;
+    
+    // Filtrar transações
+    transacoesFiltradas = transacoesOFX.filter(t => {
+        if (tipo && t.tipo !== tipo) return false;
+        if (t.valor < min || t.valor > max) return false;
+        if (busca && !t.descricao.toLowerCase().includes(busca)) return false;
+        return true;
+    });
+    
+    if (agrupar) {
+        displayTransacoesAgrupadasOFX();
+    } else {
+        displayTransacoesOFX();
+    }
+}
+
+function displayTransacoesOFX() {
+    const lista = document.getElementById('lista-transacoes-ofx');
+    
+    if (transacoesFiltradas.length === 0) {
+        lista.innerHTML = '<div class="alert alert-info">Nenhuma transação encontrada com os filtros aplicados</div>';
+        return;
+    }
+    
+    let html = '<div class="table-responsive"><table class="table table-hover"><thead><tr>';
+    html += '<th width="50"><input type="checkbox" id="check-all-ofx" onchange="toggleTodosOFX(this.checked)"></th>';
+    html += '<th>Data</th><th>Descrição</th><th>Tipo</th><th>Valor</th></tr></thead><tbody>';
+    
+    transacoesFiltradas.forEach((t, index) => {
+        const tipoTexto = t.tipo === 'CREDIT' ? 'Crédito' : 'Débito';
+        const tipoClasse = t.tipo === 'CREDIT' ? 'text-success' : 'text-danger';
+        
+        html += \`<tr>
+            <td><input type="checkbox" \${t.selecionado ? 'checked' : ''} onchange="toggleTransacaoOFX(\${index})"></td>
+            <td>\${formatarData(t.data)}</td>
+            <td>\${t.descricao}</td>
+            <td class="\${tipoClasse}">\${tipoTexto}</td>
+            <td class="\${tipoClasse}">R$ \${t.valor.toFixed(2)}</td>
+        </tr>\`;
+    });
+    
+    html += '</tbody></table></div>';
+    lista.innerHTML = html;
+}
+
+function displayTransacoesAgrupadasOFX() {
+    const lista = document.getElementById('lista-transacoes-ofx');
+    
+    if (transacoesFiltradas.length === 0) {
+        lista.innerHTML = '<div class="alert alert-info">Nenhuma transação encontrada com os filtros aplicados</div>';
+        return;
+    }
+    
+    // Agrupar por estabelecimento
+    const grupos = {};
+    transacoesFiltradas.forEach((t, index) => {
+        if (!grupos[t.estabelecimento]) {
+            grupos[t.estabelecimento] = [];
+        }
+        grupos[t.estabelecimento].push({...t, indexOriginal: index});
+    });
+    
+    let html = '';
+    let grupoIndex = 0;
+    
+    for (const [estabelecimento, transacoes] of Object.entries(grupos)) {
+        const total = transacoes.reduce((sum, t) => sum + (t.tipo === 'CREDIT' ? t.valor : -t.valor), 0);
+        const totalTexto = total >= 0 ? \`+R$ \${total.toFixed(2)}\` : \`-R$ \${Math.abs(total).toFixed(2)}\`;
+        const totalClasse = total >= 0 ? 'text-success' : 'text-danger';
+        
+        html += \`
+            <div class="card mb-3">
+                <div class="card-header" style="cursor: pointer;" data-bs-toggle="collapse" data-bs-target="#grupo-\${grupoIndex}">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <i class="bi bi-chevron-right me-2"></i>
+                            <strong>\${estabelecimento}</strong>
+                            <span class="badge bg-secondary ms-2">\${transacoes.length} transações</span>
+                        </div>
+                        <strong class="\${totalClasse}">\${totalTexto}</strong>
+                    </div>
+                </div>
+                <div id="grupo-\${grupoIndex}" class="collapse">
+                    <div class="card-body p-0">
+                        <table class="table table-sm mb-0">
+                            <thead>
+                                <tr>
+                                    <th width="50"><input type="checkbox" onchange="toggleGrupoOFX(this.checked, [\${transacoes.map(t => t.indexOriginal).join(',')}])"></th>
+                                    <th>Data</th>
+                                    <th>Descrição</th>
+                                    <th>Tipo</th>
+                                    <th>Valor</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                \${transacoes.map(t => {
+                                    const tipoTexto = t.tipo === 'CREDIT' ? 'Crédito' : 'Débito';
+                                    const tipoClasse = t.tipo === 'CREDIT' ? 'text-success' : 'text-danger';
+                                    return \`<tr>
+                                        <td><input type="checkbox" \${t.selecionado ? 'checked' : ''} onchange="toggleTransacaoOFX(\${t.indexOriginal})"></td>
+                                        <td>\${formatarData(t.data)}</td>
+                                        <td>\${t.descricao}</td>
+                                        <td class="\${tipoClasse}">\${tipoTexto}</td>
+                                        <td class="\${tipoClasse}">R$ \${t.valor.toFixed(2)}</td>
+                                    </tr>\`;
+                                }).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        \`;
+        grupoIndex++;
+    }
+    
+    lista.innerHTML = html;
+}
+
+function toggleTransacaoOFX(index) {
+    transacoesFiltradas[index].selecionado = !transacoesFiltradas[index].selecionado;
+}
+
+function toggleTodosOFX(checked) {
+    transacoesFiltradas.forEach(t => t.selecionado = checked);
+    aplicarFiltrosOFX();
+}
+
+function toggleGrupoOFX(checked, indices) {
+    indices.forEach(i => {
+        transacoesFiltradas[i].selecionado = checked;
+    });
+    aplicarFiltrosOFX();
+}
+
+function selecionarTodosOFX() {
+    transacoesFiltradas.forEach(t => t.selecionado = true);
+    aplicarFiltrosOFX();
+}
+
+function desmarcarTodosOFX() {
+    transacoesFiltradas.forEach(t => t.selecionado = false);
+    aplicarFiltrosOFX();
+}
+
+async function importarSelecionadosOFX() {
+    const selecionados = transacoesFiltradas.filter(t => t.selecionado);
+    
+    if (selecionados.length === 0) {
+        showAlert('Nenhuma transação selecionada!', 'warning');
+        return;
+    }
+    
+    try {
+        // Buscar lançamentos existentes para evitar duplicatas
+        const { data: lancamentosExistentes, error: erroBusca } = await supabase
+            .from('lancamentos')
+            .select('data, descricao, valor')
+            .eq('usuario_id', currentUser.id);
+        
+        if (erroBusca) throw erroBusca;
+        
+        let importados = 0;
+        let duplicados = 0;
+        let erros = 0;
+        
+        for (const transacao of selecionados) {
+            // Verificar duplicata (mesma data, descrição similar e valor)
+            const isDuplicado = lancamentosExistentes.some(l => {
+                return l.data === transacao.data && 
+                       Math.abs(parseFloat(l.valor) - transacao.valor) < 0.01 &&
+                       l.descricao.toLowerCase().includes(transacao.descricao.toLowerCase().substring(0, 20));
+            });
+            
+            if (isDuplicado) {
+                duplicados++;
+                continue;
+            }
+            
+            // Determinar tipo (receita ou despesa)
+            const tipo = transacao.tipo === 'CREDIT' ? 'receita' : 'despesa';
+            
+            // Buscar categoria padrão
+            const { data: categoriasPadrao } = await supabase
+                .from('categorias')
+                .select('id')
+                .eq('usuario_id', currentUser.id)
+                .eq('tipo', tipo)
+                .limit(1);
+            
+            if (!categoriasPadrao || categoriasPadrao.length === 0) {
+                erros++;
+                continue;
+            }
+            
+            // Inserir lançamento
+            const { error: erroInsert } = await supabase
+                .from('lancamentos')
+                .insert({
+                    usuario_id: currentUser.id,
+                    data: transacao.data,
+                    descricao: transacao.descricao,
+                    categoria_id: categoriasPadrao[0].id,
+                    valor: transacao.valor,
+                    tipo: tipo,
+                    status: 'pago', // Importações OFX são consideradas pagas
+                    conta_fixa_id: null,
+                    parcela_atual: null,
+                    total_parcelas: null
+                });
+            
+            if (erroInsert) {
+                console.error('Erro ao importar:', erroInsert);
+                erros++;
+            } else {
+                importados++;
+            }
+        }
+        
+        let mensagem = \`Importação concluída! \${importados} transações importadas.\`;
+        if (duplicados > 0) mensagem += \` \${duplicados} duplicatas ignoradas.\`;
+        if (erros > 0) mensagem += \` \${erros} erros.\`;
+        
+        showAlert(mensagem, importados > 0 ? 'success' : 'warning');
+        
+        // Limpar seleções
+        transacoesFiltradas.forEach(t => t.selecionado = false);
+        aplicarFiltrosOFX();
+        
+    } catch (err) {
+        console.error('Erro ao importar transações:', err);
+        showAlert('Erro ao importar transações: ' + err.message, 'danger');
+    }
 }
 
 // ============================================
