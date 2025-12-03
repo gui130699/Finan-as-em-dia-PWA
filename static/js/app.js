@@ -2167,7 +2167,7 @@ async function loadLancamentos() {
             const parcelaDisplay = lanc.parcela_atual && lanc.total_parcelas ? `${lanc.parcela_atual}/${lanc.total_parcelas}` : '-';
             const isQuitacao = lanc.descricao.includes('Quitação');
             const isConciliado = lancamentosConciliados.has(lanc.id);
-            const classeConciliado = isConciliado ? ' lancamento-conciliado' : '';
+            const classeConciliado = isConciliado ? 'lancamento-conciliado' : '';
             
             if (isConciliado) {
                 console.log('Lançamento conciliado encontrado:', lanc.id, lanc.descricao);
@@ -4779,21 +4779,35 @@ function processarArquivoConciliacao(event) {
     reader.onload = async function(e) {
         try {
             const conteudo = e.target.result;
-            transacoesConciliacao = parseOFX(conteudo);
+            const todasTransacoes = parseOFX(conteudo);
             
-            if (transacoesConciliacao.length === 0) {
+            if (todasTransacoes.length === 0) {
                 showAlert('Nenhuma transação encontrada no arquivo OFX', 'warning');
                 return;
             }
             
-            showAlert(transacoesConciliacao.length + ' transações carregadas do extrato!', 'success');
-            await carregarLancamentosConciliacao();
-            
-            // Reconstruir conciliações salvas no mapa
+            // Filtrar transações já conciliadas
             if (window.conciliacoesBanco && window.conciliacoesBanco.length > 0) {
-                reconstruirConciliacoes();
+                const fitidsConciliados = new Set(
+                    window.conciliacoesBanco.map(c => c.fitid).filter(f => f)
+                );
+                
+                transacoesConciliacao = todasTransacoes.filter(t => 
+                    !t.fitid || !fitidsConciliados.has(t.fitid)
+                );
+                
+                const removidos = todasTransacoes.length - transacoesConciliacao.length;
+                console.log('Transações no arquivo:', todasTransacoes.length, 
+                           'Já conciliadas removidas:', removidos,
+                           'Disponíveis:', transacoesConciliacao.length);
+                
+                showAlert(transacoesConciliacao.length + ' transações disponíveis (' + removidos + ' já conciliadas removidas)', 'success');
+            } else {
+                transacoesConciliacao = todasTransacoes;
+                showAlert(transacoesConciliacao.length + ' transações carregadas do extrato!', 'success');
             }
             
+            await carregarLancamentosConciliacao();
             aplicarFiltrosConciliacao();
             displayConciliacao();
             
@@ -4803,49 +4817,6 @@ function processarArquivoConciliacao(event) {
         }
     };
     reader.readAsText(file);
-}
-
-function reconstruirConciliacoes() {
-    conciliacoesMapa.clear();
-    
-    // Agrupar conciliações por lancamento_id
-    const conciliacoesPorLancamento = {};
-    window.conciliacoesBanco.forEach(c => {
-        if (!conciliacoesPorLancamento[c.lancamento_id]) {
-            conciliacoesPorLancamento[c.lancamento_id] = [];
-        }
-        conciliacoesPorLancamento[c.lancamento_id].push(c);
-    });
-    
-    // Para cada lançamento conciliado
-    Object.keys(conciliacoesPorLancamento).forEach(lancamentoId => {
-        const conciliacoesLancamento = conciliacoesPorLancamento[lancamentoId];
-        const extratosIndices = [];
-        
-        // Encontrar os índices das transações do extrato que correspondem às conciliações
-        conciliacoesLancamento.forEach(conciliacao => {
-            const index = transacoesConciliacao.findIndex(t => 
-                t.fitid === conciliacao.fitid &&
-                t.data === conciliacao.data_extrato &&
-                Math.abs(t.valor - conciliacao.valor_extrato) < 0.01
-            );
-            
-            if (index !== -1) {
-                extratosIndices.push(index);
-            }
-        });
-        
-        // Se encontrou os extratos, adicionar ao mapa
-        if (extratosIndices.length > 0) {
-            const chave = 'L' + lancamentoId + '-E' + extratosIndices.sort().join(',');
-            conciliacoesMapa.set(chave, {
-                extratosIndices: extratosIndices,
-                lancamentoId: parseInt(lancamentoId)
-            });
-        }
-    });
-    
-    console.log('Conciliações reconstruídas:', conciliacoesMapa.size);
 }
 
 async function carregarLancamentosConciliacao() {
