@@ -4064,12 +4064,12 @@ function extrairCampoOFX(texto, campo) {
 function extrairEstabelecimento(descricao) {
     // Remove números, datas e caracteres especiais para extrair o nome do estabelecimento
     let estabelecimento = descricao
-        .replace(/\\d{2}\\/\\d{2}\\/\\d{2,4}/g, '') // Remove datas
-        .replace(/\\d{2}\\/\\d{2}/g, '') // Remove datas parciais
-        .replace(/\\d{2}:\\d{2}/g, '') // Remove horários
+        .replace(/\d{2}\/\d{2}\/\d{2,4}/g, '') // Remove datas
+        .replace(/\d{2}\/\d{2}/g, '') // Remove datas parciais
+        .replace(/\d{2}:\d{2}/g, '') // Remove horários
         .replace(/[0-9]+/g, '') // Remove números
-        .replace(/[^a-zA-ZÀ-ÿ\\s]/g, ' ') // Remove caracteres especiais
-        .replace(/\\s+/g, ' ') // Remove espaços duplicados
+        .replace(/[^a-zA-ZÀ-ÿ\s]/g, ' ') // Remove caracteres especiais
+        .replace(/\s+/g, ' ') // Remove espaços duplicados
         .trim();
     
     // Pegar primeiras palavras (máximo 3)
