@@ -2180,16 +2180,14 @@ async function loadLancamentos() {
                 html += '<i class="bi bi-info-circle"></i>';
                 html += '</button>';
             }
-            if (!isGrupo) {
-                html += '<button class="btn btn-sm ' + (lanc.status === 'pago' ? 'btn-success' : 'btn-warning') + '" ';
-                html += 'onclick="toggleStatus(' + lanc.id + ', \'' + lanc.status + '\')" ';
-                html += 'title="' + (lanc.status === 'pago' ? 'Marcar como Pendente' : 'Marcar como Pago') + '">';
-                html += '<i class="bi bi-' + (lanc.status === 'pago' ? 'arrow-counterclockwise' : 'check-circle') + '"></i>';
-                html += '</button>';
-                html += '<button class="btn btn-sm btn-primary" onclick="editarLancamento(' + lanc.id + ')" title="Editar">';
-                html += '<i class="bi bi-pencil"></i>';
-                html += '</button>';
-            }
+            html += '<button class="btn btn-sm ' + (lanc.status === 'pago' ? 'btn-success' : 'btn-warning') + '" ';
+            html += 'onclick="' + (isGrupo ? 'toggleStatusGrupo(' : 'toggleStatus(') + lanc.id + ', \'' + lanc.status + '\')" ';
+            html += 'title="' + (lanc.status === 'pago' ? 'Marcar como Pendente' : 'Marcar como Pago') + '">';
+            html += '<i class="bi bi-' + (lanc.status === 'pago' ? 'arrow-counterclockwise' : 'check-circle') + '"></i>';
+            html += '</button>';
+            html += '<button class="btn btn-sm btn-primary" onclick="editarLancamento(' + lanc.id + ')" title="Editar">';
+            html += '<i class="bi bi-pencil"></i>';
+            html += '</button>';
             html += '<button class="btn btn-sm btn-danger" onclick="' + (isGrupo ? 'desagrupar(' : 'deleteLancamento(') + lanc.id + ')" title="' + (isGrupo ? 'Desagrupar' : 'Excluir') + '">';
             html += '<i class="bi bi-trash"></i>';
             html += '</button>';
@@ -5516,6 +5514,8 @@ async function verDetalhesGrupo(grupoId) {
         html += '<th>Descrição</th>';
         html += '<th>Valor</th>';
         html += '<th>Tipo</th>';
+        html += '<th>Status</th>';
+        html += '<th>Ações</th>';
         html += '</tr></thead>';
         html += '<tbody>';
         
@@ -5526,6 +5526,20 @@ async function verDetalhesGrupo(grupoId) {
             html += '<td>' + l.descricao + '</td>';
             html += '<td class="' + classeValor + '">R$ ' + parseFloat(l.valor).toFixed(2) + '</td>';
             html += '<td><span class="badge ' + (l.tipo === 'receita' ? 'bg-success' : 'bg-danger') + '">' + l.tipo + '</span></td>';
+            html += '<td><span class="badge ' + (l.status === 'pago' ? 'bg-success' : 'bg-warning') + '">' + (l.status === 'pago' ? 'Pago' : 'Pendente') + '</span></td>';
+            html += '<td>';
+            html += '<button class="btn btn-sm ' + (l.status === 'pago' ? 'btn-success' : 'btn-warning') + '" ';
+            html += 'onclick="toggleStatusLancamentoGrupo(' + l.id + ', \'' + l.status + '\', ' + grupoId + ')" ';
+            html += 'title="' + (l.status === 'pago' ? 'Marcar como Pendente' : 'Marcar como Pago') + '">';
+            html += '<i class="bi bi-' + (l.status === 'pago' ? 'arrow-counterclockwise' : 'check-circle') + '"></i>';
+            html += '</button> ';
+            html += '<button class="btn btn-sm btn-primary" onclick="editarLancamento(' + l.id + ')" title="Editar">';
+            html += '<i class="bi bi-pencil"></i>';
+            html += '</button> ';
+            html += '<button class="btn btn-sm btn-danger" onclick="removerLancamentoDoGrupo(' + l.id + ', ' + grupoId + ')" title="Remover do Grupo">';
+            html += '<i class="bi bi-trash"></i>';
+            html += '</button>';
+            html += '</td>';
             html += '</tr>';
         });
         
@@ -5592,6 +5606,143 @@ async function desagrupar(grupoId) {
     }
 }
 
+async function toggleStatusGrupo(grupoId, statusAtual) {
+    const novoStatus = statusAtual === 'pago' ? 'pendente' : 'pago';
+    
+    if (!confirm('Deseja alterar o status do grupo inteiro e todos os seus lançamentos para "' + novoStatus + '"?')) {
+        return;
+    }
+    
+    try {
+        // Buscar IDs dos lançamentos do grupo
+        const { data: agrupados, error: errorAgrupados } = await supabase
+            .from('lancamentos_agrupados')
+            .select('lancamento_id')
+            .eq('grupo_id', grupoId);
+        
+        if (errorAgrupados) throw errorAgrupados;
+        
+        const ids = agrupados.map(a => a.lancamento_id);
+        
+        // Atualizar status de todos os lançamentos do grupo
+        const { error: errorLanc } = await supabase
+            .from('lancamentos')
+            .update({ status: novoStatus })
+            .in('id', ids);
+        
+        if (errorLanc) throw errorLanc;
+        
+        // Atualizar status do próprio grupo
+        const { error: errorGrupo } = await supabase
+            .from('lancamentos')
+            .update({ status: novoStatus })
+            .eq('id', grupoId);
+        
+        if (errorGrupo) throw errorGrupo;
+        
+        showAlert('Status do grupo alterado com sucesso!', 'success');
+        await loadLancamentos();
+        
+    } catch (err) {
+        console.error('Erro ao alterar status do grupo:', err);
+        showAlert('Erro ao alterar status: ' + err.message, 'danger');
+    }
+}
+
+async function toggleStatusLancamentoGrupo(lancId, statusAtual, grupoId) {
+    const novoStatus = statusAtual === 'pago' ? 'pendente' : 'pago';
+    
+    try {
+        // Atualizar status do lançamento individual
+        const { error } = await supabase
+            .from('lancamentos')
+            .update({ status: novoStatus })
+            .eq('id', lancId);
+        
+        if (error) throw error;
+        
+        showAlert('Status alterado com sucesso!', 'success');
+        
+        // Reabrir modal com dados atualizados
+        await verDetalhesGrupo(grupoId);
+        
+    } catch (err) {
+        console.error('Erro ao alterar status:', err);
+        showAlert('Erro ao alterar status: ' + err.message, 'danger');
+    }
+}
+
+async function removerLancamentoDoGrupo(lancId, grupoId) {
+    if (!confirm('Deseja remover este lançamento do grupo?')) {
+        return;
+    }
+    
+    try {
+        // Remover da tabela de agrupamento
+        const { error: errorRemover } = await supabase
+            .from('lancamentos_agrupados')
+            .delete()
+            .eq('grupo_id', grupoId)
+            .eq('lancamento_id', lancId);
+        
+        if (errorRemover) throw errorRemover;
+        
+        // Verificar quantos lançamentos restam no grupo
+        const { data: restantes, error: errorRestantes } = await supabase
+            .from('lancamentos_agrupados')
+            .select('id')
+            .eq('grupo_id', grupoId);
+        
+        if (errorRestantes) throw errorRestantes;
+        
+        // Se sobrou apenas 1 ou nenhum, desagrupar completamente
+        if (restantes.length <= 1) {
+            await desagrupar(grupoId);
+            fecharModalGrupo();
+            showAlert('Grupo desfeito pois restou apenas 1 lançamento', 'info');
+            return;
+        }
+        
+        // Recalcular valor total do grupo
+        const idsRestantes = restantes.map(r => r.lancamento_id);
+        const { data: lancs, error: errorLancs } = await supabase
+            .from('lancamentos')
+            .select('tipo, valor')
+            .in('id', idsRestantes);
+        
+        if (errorLancs) throw errorLancs;
+        
+        let valorTotal = 0;
+        lancs.forEach(l => {
+            valorTotal += l.tipo === 'receita' ? l.valor : -l.valor;
+        });
+        
+        const tipo = valorTotal >= 0 ? 'receita' : 'despesa';
+        valorTotal = Math.abs(valorTotal);
+        
+        // Atualizar grupo
+        const { error: errorUpdate } = await supabase
+            .from('lancamentos')
+            .update({ 
+                valor: valorTotal,
+                tipo: tipo 
+            })
+            .eq('id', grupoId);
+        
+        if (errorUpdate) throw errorUpdate;
+        
+        showAlert('Lançamento removido do grupo!', 'success');
+        
+        // Reabrir modal
+        await verDetalhesGrupo(grupoId);
+        await loadLancamentos();
+        
+    } catch (err) {
+        console.error('Erro ao remover lançamento:', err);
+        showAlert('Erro ao remover lançamento: ' + err.message, 'danger');
+    }
+}
+
 // Expor funções globalmente
 window.showPage = showPage;
 window.logout = logout;
@@ -5623,3 +5774,6 @@ window.agruparLancamentosSelecionados = agruparLancamentosSelecionados;
 window.verDetalhesGrupo = verDetalhesGrupo;
 window.desagrupar = desagrupar;
 window.fecharModalGrupo = fecharModalGrupo;
+window.toggleStatusGrupo = toggleStatusGrupo;
+window.toggleStatusLancamentoGrupo = toggleStatusLancamentoGrupo;
+window.removerLancamentoDoGrupo = removerLancamentoDoGrupo;
