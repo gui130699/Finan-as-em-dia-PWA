@@ -897,10 +897,26 @@ async function loadDashboard() {
         
         console.log('Lançamentos carregados:', data?.length || 0);
         
-        const receitas = data.filter(l => l.tipo === 'receita' && l.status === 'pago');
-        const receitasPendentes = data.filter(l => l.tipo === 'receita' && l.status === 'pendente');
-        const despesas = data.filter(l => l.tipo === 'despesa' && l.status === 'pago');
-        const despesasPendentes = data.filter(l => l.tipo === 'despesa' && l.status === 'pendente');
+        // Buscar lançamentos que estão agrupados (para filtrar)
+        const { data: agrupados, error: errorAgrupados } = await supabase
+            .from('lancamentos_agrupados')
+            .select('lancamento_id');
+        
+        if (errorAgrupados) {
+            console.error('Erro ao buscar agrupados:', errorAgrupados);
+        }
+        
+        const idsAgrupados = new Set(agrupados ? agrupados.map(a => a.lancamento_id) : []);
+        
+        // Filtrar lançamentos que estão agrupados
+        const lancamentosFiltrados = data.filter(l => !idsAgrupados.has(l.id));
+        
+        console.log('Lançamentos após filtrar agrupados:', lancamentosFiltrados.length);
+        
+        const receitas = lancamentosFiltrados.filter(l => l.tipo === 'receita' && l.status === 'pago');
+        const receitasPendentes = lancamentosFiltrados.filter(l => l.tipo === 'receita' && l.status === 'pendente');
+        const despesas = lancamentosFiltrados.filter(l => l.tipo === 'despesa' && l.status === 'pago');
+        const despesasPendentes = lancamentosFiltrados.filter(l => l.tipo === 'despesa' && l.status === 'pendente');
         
         const totalReceitas = receitas.reduce((sum, l) => sum + parseFloat(l.valor), 0);
         const totalReceitasPendentes = receitasPendentes.reduce((sum, l) => sum + parseFloat(l.valor), 0);
@@ -1608,9 +1624,22 @@ function getLancamentosHTML() {
                     <div class="card bg-danger text-white">
                         <div class="card-body">
                             <h6 class="card-title mb-0">
-                                <i class="bi bi-arrow-down-circle"></i> Total Despesas
+                                <i class="bi bi-arrow-down-circle"></i> Despesas
                             </h6>
-                            <h4 class="mb-0" id="total-despesas">R$ 0,00</h4>
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <small>Pagas:</small>
+                                    <h5 class="mb-0" id="total-despesas-pagas">R$ 0,00</h5>
+                                </div>
+                                <div>
+                                    <small>Pendentes:</small>
+                                    <h5 class="mb-0" id="total-despesas-pendentes">R$ 0,00</h5>
+                                </div>
+                                <div>
+                                    <small>Total:</small>
+                                    <h4 class="mb-0" id="total-despesas">R$ 0,00</h4>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -1618,9 +1647,22 @@ function getLancamentosHTML() {
                     <div class="card bg-success text-white">
                         <div class="card-body">
                             <h6 class="card-title mb-0">
-                                <i class="bi bi-arrow-up-circle"></i> Total Receitas
+                                <i class="bi bi-arrow-up-circle"></i> Receitas
                             </h6>
-                            <h4 class="mb-0" id="total-receitas">R$ 0,00</h4>
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <small>Pagas:</small>
+                                    <h5 class="mb-0" id="total-receitas-pagas">R$ 0,00</h5>
+                                </div>
+                                <div>
+                                    <small>Pendentes:</small>
+                                    <h5 class="mb-0" id="total-receitas-pendentes">R$ 0,00</h5>
+                                </div>
+                                <div>
+                                    <small>Total:</small>
+                                    <h4 class="mb-0" id="total-receitas">R$ 0,00</h4>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -2150,31 +2192,62 @@ async function loadLancamentos() {
         if (lancamentosVisiveis.length === 0) {
             listEl.innerHTML = '<div class="alert alert-info"><i class="bi bi-info-circle"></i> Nenhum lançamento encontrado.</div>';
             // Zerar totais
-            const totalDespesas = document.getElementById('total-despesas');
-            const totalReceitas = document.getElementById('total-receitas');
-            if (totalDespesas) totalDespesas.textContent = 'R$ 0,00';
-            if (totalReceitas) totalReceitas.textContent = 'R$ 0,00';
+            const elemDespesas = document.getElementById('total-despesas');
+            const elemDespesasPagas = document.getElementById('total-despesas-pagas');
+            const elemDespesasPendentes = document.getElementById('total-despesas-pendentes');
+            const elemReceitas = document.getElementById('total-receitas');
+            const elemReceitasPagas = document.getElementById('total-receitas-pagas');
+            const elemReceitasPendentes = document.getElementById('total-receitas-pendentes');
+            
+            if (elemDespesas) elemDespesas.textContent = 'R$ 0,00';
+            if (elemDespesasPagas) elemDespesasPagas.textContent = 'R$ 0,00';
+            if (elemDespesasPendentes) elemDespesasPendentes.textContent = 'R$ 0,00';
+            if (elemReceitas) elemReceitas.textContent = 'R$ 0,00';
+            if (elemReceitasPagas) elemReceitasPagas.textContent = 'R$ 0,00';
+            if (elemReceitasPendentes) elemReceitasPendentes.textContent = 'R$ 0,00';
             return;
         }
         
-        // Calcular totais
-        let somaDespesas = 0;
-        let somaReceitas = 0;
+        // Calcular totais separados por status
+        let somaDespesasPagas = 0;
+        let somaDespesasPendentes = 0;
+        let somaReceitasPagas = 0;
+        let somaReceitasPendentes = 0;
         
         lancamentosVisiveis.forEach(lanc => {
             const valor = parseFloat(lanc.valor);
             if (lanc.tipo === 'despesa') {
-                somaDespesas += valor;
+                if (lanc.status === 'pago') {
+                    somaDespesasPagas += valor;
+                } else {
+                    somaDespesasPendentes += valor;
+                }
             } else if (lanc.tipo === 'receita') {
-                somaReceitas += valor;
+                if (lanc.status === 'pago') {
+                    somaReceitasPagas += valor;
+                } else {
+                    somaReceitasPendentes += valor;
+                }
             }
         });
         
+        const totalDespesas = somaDespesasPagas + somaDespesasPendentes;
+        const totalReceitas = somaReceitasPagas + somaReceitasPendentes;
+        
         // Atualizar totais na tela
-        const totalDespesas = document.getElementById('total-despesas');
-        const totalReceitas = document.getElementById('total-receitas');
-        if (totalDespesas) totalDespesas.textContent = 'R$ ' + somaDespesas.toFixed(2).replace('.', ',');
-        if (totalReceitas) totalReceitas.textContent = 'R$ ' + somaReceitas.toFixed(2).replace('.', ',');
+        const elemDespesas = document.getElementById('total-despesas');
+        const elemDespesasPagas = document.getElementById('total-despesas-pagas');
+        const elemDespesasPendentes = document.getElementById('total-despesas-pendentes');
+        const elemReceitas = document.getElementById('total-receitas');
+        const elemReceitasPagas = document.getElementById('total-receitas-pagas');
+        const elemReceitasPendentes = document.getElementById('total-receitas-pendentes');
+        
+        if (elemDespesas) elemDespesas.textContent = 'R$ ' + totalDespesas.toFixed(2).replace('.', ',');
+        if (elemDespesasPagas) elemDespesasPagas.textContent = 'R$ ' + somaDespesasPagas.toFixed(2).replace('.', ',');
+        if (elemDespesasPendentes) elemDespesasPendentes.textContent = 'R$ ' + somaDespesasPendentes.toFixed(2).replace('.', ',');
+        if (elemReceitas) elemReceitas.textContent = 'R$ ' + totalReceitas.toFixed(2).replace('.', ',');
+        if (elemReceitasPagas) elemReceitasPagas.textContent = 'R$ ' + somaReceitasPagas.toFixed(2).replace('.', ',');
+        if (elemReceitasPendentes) elemReceitasPendentes.textContent = 'R$ ' + somaReceitasPendentes.toFixed(2).replace('.', ',');
         
         let html = '<div class="mb-3">';
         html += '<div class="btn-group" role="group" id="btn-agrupar-group" style="display:none;">';
