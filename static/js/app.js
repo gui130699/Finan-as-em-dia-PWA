@@ -1603,6 +1603,29 @@ function getLancamentosHTML() {
                 </div>
             </div>
             
+            <div id="totais-lancamentos" class="row mt-4 mb-3">
+                <div class="col-md-6">
+                    <div class="card bg-danger text-white">
+                        <div class="card-body">
+                            <h6 class="card-title mb-0">
+                                <i class="bi bi-arrow-down-circle"></i> Total Despesas
+                            </h6>
+                            <h4 class="mb-0" id="total-despesas">R$ 0,00</h4>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card bg-success text-white">
+                        <div class="card-body">
+                            <h6 class="card-title mb-0">
+                                <i class="bi bi-arrow-up-circle"></i> Total Receitas
+                            </h6>
+                            <h4 class="mb-0" id="total-receitas">R$ 0,00</h4>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
             <div id="lancamentos-list" class="mt-4"></div>
         </div>
     `;
@@ -2126,8 +2149,32 @@ async function loadLancamentos() {
         
         if (lancamentosVisiveis.length === 0) {
             listEl.innerHTML = '<div class="alert alert-info"><i class="bi bi-info-circle"></i> Nenhum lançamento encontrado.</div>';
+            // Zerar totais
+            const totalDespesas = document.getElementById('total-despesas');
+            const totalReceitas = document.getElementById('total-receitas');
+            if (totalDespesas) totalDespesas.textContent = 'R$ 0,00';
+            if (totalReceitas) totalReceitas.textContent = 'R$ 0,00';
             return;
         }
+        
+        // Calcular totais
+        let somaDespesas = 0;
+        let somaReceitas = 0;
+        
+        lancamentosVisiveis.forEach(lanc => {
+            const valor = parseFloat(lanc.valor);
+            if (lanc.tipo === 'despesa') {
+                somaDespesas += valor;
+            } else if (lanc.tipo === 'receita') {
+                somaReceitas += valor;
+            }
+        });
+        
+        // Atualizar totais na tela
+        const totalDespesas = document.getElementById('total-despesas');
+        const totalReceitas = document.getElementById('total-receitas');
+        if (totalDespesas) totalDespesas.textContent = 'R$ ' + somaDespesas.toFixed(2).replace('.', ',');
+        if (totalReceitas) totalReceitas.textContent = 'R$ ' + somaReceitas.toFixed(2).replace('.', ',');
         
         let html = '<div class="mb-3">';
         html += '<div class="btn-group" role="group" id="btn-agrupar-group" style="display:none;">';
