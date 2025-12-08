@@ -870,10 +870,10 @@ async function loadDashboard() {
         console.log('Período atual:', mesInicio, 'até', mesFim);
         console.log('Período anterior:', mesAnteriorInicio, 'até', mesAnteriorFim);
         
-        // Buscar lançamentos do mês atual
+        // Buscar lançamentos do mês atual (incluindo is_grupo para filtrar corretamente)
         const { data, error } = await supabase
             .from('lancamentos')
-            .select('*, categorias(nome)')
+            .select('id, usuario_id, tipo, valor, status, data, is_grupo, categorias(nome)')
             .eq('usuario_id', currentUser.id)
             .gte('data', mesInicio)
             .lte('data', mesFim);
@@ -902,11 +902,21 @@ async function loadDashboard() {
         const lancamentosParaCalculo = data.filter(l => l.is_grupo !== true);
         
         console.log('Lançamentos para cálculo (sem grupos):', lancamentosParaCalculo.length);
+        console.log('Detalhes dos lançamentos para cálculo:', lancamentosParaCalculo.map(l => ({
+            id: l.id,
+            tipo: l.tipo,
+            valor: l.valor,
+            status: l.status,
+            is_grupo: l.is_grupo
+        })));
         
         const receitas = lancamentosParaCalculo.filter(l => l.tipo === 'receita' && l.status === 'pago');
         const receitasPendentes = lancamentosParaCalculo.filter(l => l.tipo === 'receita' && l.status === 'pendente');
         const despesas = lancamentosParaCalculo.filter(l => l.tipo === 'despesa' && l.status === 'pago');
         const despesasPendentes = lancamentosParaCalculo.filter(l => l.tipo === 'despesa' && l.status === 'pendente');
+        
+        console.log('Despesas pagas:', despesas.length, 'Total:', despesas.reduce((sum, l) => sum + parseFloat(l.valor), 0));
+        console.log('Despesas pendentes:', despesasPendentes.length, 'Total:', despesasPendentes.reduce((sum, l) => sum + parseFloat(l.valor), 0));
         
         const totalReceitas = receitas.reduce((sum, l) => sum + parseFloat(l.valor), 0);
         const totalReceitasPendentes = receitasPendentes.reduce((sum, l) => sum + parseFloat(l.valor), 0);
