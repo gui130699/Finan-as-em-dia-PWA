@@ -873,7 +873,7 @@ async function loadDashboard() {
         // Buscar lançamentos do mês atual (incluindo is_grupo para filtrar corretamente)
         const { data, error } = await supabase
             .from('lancamentos')
-            .select('id, usuario_id, tipo, valor, status, data, is_grupo, categorias(nome)')
+            .select('id, usuario_id, tipo, descricao, valor, status, data, is_grupo, categorias(nome)')
             .eq('usuario_id', currentUser.id)
             .gte('data', mesInicio)
             .lte('data', mesFim);
