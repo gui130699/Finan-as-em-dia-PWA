@@ -1022,20 +1022,25 @@ async function loadDashboard() {
                 <div class="card">
                     <div class="card-body">
                         <h6 class="card-title"><i class="bi bi-pie-chart"></i> Top 5 Categorias</h6>
-                        ${topCategorias.length > 0 ? topCategorias.map(([cat, val]) => {
-                            const percentual = totalDespesas > 0 ? (val / totalDespesas * 100) : 0;
-                            return `
-                                <div class="mb-2">
-                                    <div class="d-flex justify-content-between mb-1">
-                                        <small>${cat}</small>
-                                        <small><strong>R$ ${val.toFixed(2)}</strong> (${percentual.toFixed(1)}%)</small>
+                        ${topCategorias.length > 0 ? (() => {
+                            // Calcular o total das Top 5 categorias
+                            const totalTop5 = topCategorias.reduce((sum, [cat, val]) => sum + val, 0);
+                            
+                            return topCategorias.map(([cat, val]) => {
+                                const percentual = totalTop5 > 0 ? (val / totalTop5 * 100) : 0;
+                                return `
+                                    <div class="mb-2">
+                                        <div class="d-flex justify-content-between mb-1">
+                                            <small>${cat}</small>
+                                            <small><strong>R$ ${val.toFixed(2)}</strong> (${percentual.toFixed(1)}%)</small>
+                                        </div>
+                                        <div class="progress" style="height: 8px;">
+                                            <div class="progress-bar bg-primary" style="width: ${percentual}%"></div>
+                                        </div>
                                     </div>
-                                    <div class="progress" style="height: 8px;">
-                                        <div class="progress-bar bg-primary" style="width: ${percentual}%"></div>
-                                    </div>
-                                </div>
-                            `;
-                        }).join('') : '<p class="text-muted mb-0">Nenhuma despesa registrada</p>'}
+                                `;
+                            }).join('');
+                        })() : '<p class="text-muted mb-0">Nenhuma despesa registrada</p>'}
                     </div>
                 </div>
             </div>
