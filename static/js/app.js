@@ -897,26 +897,16 @@ async function loadDashboard() {
         
         console.log('Lançamentos carregados:', data?.length || 0);
         
-        // Buscar lançamentos que estão agrupados (para filtrar)
-        const { data: agrupados, error: errorAgrupados } = await supabase
-            .from('lancamentos_agrupados')
-            .select('lancamento_id');
+        // Para cálculos: usar lançamentos individuais (ignorar grupos)
+        // Grupos (is_grupo=true) não devem ser somados, apenas seus itens internos
+        const lancamentosParaCalculo = data.filter(l => l.is_grupo !== true);
         
-        if (errorAgrupados) {
-            console.error('Erro ao buscar agrupados:', errorAgrupados);
-        }
+        console.log('Lançamentos para cálculo (sem grupos):', lancamentosParaCalculo.length);
         
-        const idsAgrupados = new Set(agrupados ? agrupados.map(a => a.lancamento_id) : []);
-        
-        // Filtrar lançamentos que estão agrupados
-        const lancamentosFiltrados = data.filter(l => !idsAgrupados.has(l.id));
-        
-        console.log('Lançamentos após filtrar agrupados:', lancamentosFiltrados.length);
-        
-        const receitas = lancamentosFiltrados.filter(l => l.tipo === 'receita' && l.status === 'pago');
-        const receitasPendentes = lancamentosFiltrados.filter(l => l.tipo === 'receita' && l.status === 'pendente');
-        const despesas = lancamentosFiltrados.filter(l => l.tipo === 'despesa' && l.status === 'pago');
-        const despesasPendentes = lancamentosFiltrados.filter(l => l.tipo === 'despesa' && l.status === 'pendente');
+        const receitas = lancamentosParaCalculo.filter(l => l.tipo === 'receita' && l.status === 'pago');
+        const receitasPendentes = lancamentosParaCalculo.filter(l => l.tipo === 'receita' && l.status === 'pendente');
+        const despesas = lancamentosParaCalculo.filter(l => l.tipo === 'despesa' && l.status === 'pago');
+        const despesasPendentes = lancamentosParaCalculo.filter(l => l.tipo === 'despesa' && l.status === 'pendente');
         
         const totalReceitas = receitas.reduce((sum, l) => sum + parseFloat(l.valor), 0);
         const totalReceitasPendentes = receitasPendentes.reduce((sum, l) => sum + parseFloat(l.valor), 0);
@@ -2209,12 +2199,19 @@ async function loadLancamentos() {
         }
         
         // Calcular totais separados por status
+        // Para cálculos: somar lançamentos individuais, ignorar grupos (is_grupo=true)
         let somaDespesasPagas = 0;
         let somaDespesasPendentes = 0;
         let somaReceitasPagas = 0;
         let somaReceitasPendentes = 0;
         
-        lancamentosVisiveis.forEach(lanc => {
+        // Buscar TODOS os lançamentos do período (incluindo os que estão dentro de grupos)
+        const todosLancamentos = data;
+        
+        todosLancamentos.forEach(lanc => {
+            // Ignorar lançamentos de grupo (somar apenas os individuais)
+            if (lanc.is_grupo === true) return;
+            
             const valor = parseFloat(lanc.valor);
             if (lanc.tipo === 'despesa') {
                 if (lanc.status === 'pago') {
