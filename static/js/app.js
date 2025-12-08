@@ -936,8 +936,8 @@ async function loadDashboard() {
         
         // Agrupar gastos por categoria (incluindo pendentes e pagas)
         const gastosPorCategoria = {};
-        // Incluir todas as despesas do mês (pagas e pendentes)
-        const todasDespesasMes = data.filter(l => l.tipo === 'despesa');
+        // Incluir todas as despesas do mês (pagas e pendentes) - filtrar apenas itens individuais (não grupos)
+        const todasDespesasMes = lancamentosParaCalculo.filter(l => l.tipo === 'despesa');
         todasDespesasMes.forEach(l => {
             const catNome = l.categorias?.nome || 'Sem Categoria';
             if (!gastosPorCategoria[catNome]) {
