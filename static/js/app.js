@@ -5688,9 +5688,8 @@ function fecharModalSelecaoGrupo() {
         modal.hide();
         // Remover backdrop e modal após fechar
         modalElement.addEventListener('hidden.bs.modal', function() {
-            // Remover backdrop manualmente
-            const backdrop = document.querySelector('.modal-backdrop');
-            if (backdrop) backdrop.remove();
+            // Remover TODOS os backdrops manualmente
+            document.querySelectorAll('.modal-backdrop').forEach(backdrop => backdrop.remove());
             // Remover classes do body
             document.body.classList.remove('modal-open');
             document.body.style.removeProperty('overflow');
@@ -5924,9 +5923,8 @@ function fecharModalGrupo() {
         modal.hide();
         // Remover backdrop e modal após fechar
         modalElement.addEventListener('hidden.bs.modal', function() {
-            // Remover backdrop manualmente
-            const backdrop = document.querySelector('.modal-backdrop');
-            if (backdrop) backdrop.remove();
+            // Remover TODOS os backdrops manualmente
+            document.querySelectorAll('.modal-backdrop').forEach(backdrop => backdrop.remove());
             // Remover classes do body
             document.body.classList.remove('modal-open');
             document.body.style.removeProperty('overflow');
@@ -6333,8 +6331,8 @@ function fecharModalEdicaoGrupo() {
     if (modal) {
         modal.hide();
         modalElement.addEventListener('hidden.bs.modal', function() {
-            const backdrop = document.querySelector('.modal-backdrop');
-            if (backdrop) backdrop.remove();
+            // Remover TODOS os backdrops manualmente
+            document.querySelectorAll('.modal-backdrop').forEach(backdrop => backdrop.remove());
             document.body.classList.remove('modal-open');
             document.body.style.removeProperty('overflow');
             document.body.style.removeProperty('padding-right');
