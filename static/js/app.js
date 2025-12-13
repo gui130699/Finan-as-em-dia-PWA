@@ -2178,6 +2178,15 @@ async function loadLancamentos() {
         // Filtrar lançamentos que estão agrupados
         const lancamentosVisiveis = data.filter(l => !idsAgrupados.has(l.id));
         
+        // Ordenar: grupos primeiro (is_grupo = true), depois por data decrescente
+        lancamentosVisiveis.sort((a, b) => {
+            // Se um é grupo e outro não, grupo vem primeiro
+            if (a.is_grupo && !b.is_grupo) return -1;
+            if (!a.is_grupo && b.is_grupo) return 1;
+            // Se ambos são grupos ou ambos não são, ordenar por data (mais recente primeiro)
+            return new Date(b.data) - new Date(a.data);
+        });
+        
         if (error) {
             console.error('Erro ao buscar lançamentos:', error);
             throw error;
