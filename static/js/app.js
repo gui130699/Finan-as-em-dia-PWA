@@ -5873,13 +5873,23 @@ async function verDetalhesGrupo(grupoId) {
         
         lancamentos.forEach(l => {
             const classeValor = l.tipo === 'receita' ? 'text-success' : 'text-danger';
+            const isSubGrupo = l.is_grupo === true;
+            
             html += '<tr>';
             html += '<td>' + formatDate(l.data) + '</td>';
-            html += '<td>' + l.descricao + '</td>';
+            html += '<td>' + l.descricao + (isSubGrupo ? ' 📦' : '') + '</td>';
             html += '<td class="' + classeValor + '">R$ ' + parseFloat(l.valor).toFixed(2) + '</td>';
             html += '<td><span class="badge ' + (l.tipo === 'receita' ? 'bg-success' : 'bg-danger') + '">' + l.tipo + '</span></td>';
             html += '<td><span class="badge ' + (l.status === 'pago' ? 'bg-success' : 'bg-warning') + '">' + (l.status === 'pago' ? 'Pago' : 'Pendente') + '</span></td>';
             html += '<td>';
+            
+            // Se for um subgrupo, adicionar botão para expandir
+            if (isSubGrupo) {
+                html += '<button class="btn btn-sm btn-info" onclick="verDetalhesSubGrupo(' + l.id + ', ' + grupoId + ')" title="Ver Itens do Subgrupo">';
+                html += '<i class="bi bi-folder-open"></i>';
+                html += '</button> ';
+            }
+            
             html += '<button class="btn btn-sm ' + (l.status === 'pago' ? 'btn-success' : 'btn-warning') + '" ';
             html += 'onclick="toggleStatusLancamentoGrupo(' + l.id + ', \'' + l.status + '\', ' + grupoId + ')" ';
             html += 'title="' + (l.status === 'pago' ? 'Marcar como Pendente' : 'Marcar como Pago') + '">';
@@ -6432,6 +6442,132 @@ async function salvarEdicaoLancamentoGrupo(lancId, grupoId) {
     }
 }
 
+async function verDetalhesSubGrupo(subGrupoId, grupoPaiId) {
+    try {
+        // Buscar lançamentos do subgrupo
+        const { data: agrupados, error: errorAgrupados } = await supabase
+            .from('lancamentos_agrupados')
+            .select('lancamento_id')
+            .eq('grupo_id', subGrupoId);
+        
+        if (errorAgrupados) throw errorAgrupados;
+        
+        const ids = agrupados.map(a => a.lancamento_id);
+        
+        const { data: lancamentos, error: errorLanc } = await supabase
+            .from('lancamentos')
+            .select('*, categorias(nome)')
+            .in('id', ids)
+            .order('data', { ascending: false });
+        
+        if (errorLanc) throw errorLanc;
+        
+        // Buscar dados do subgrupo
+        const { data: subGrupo, error: errorSubGrupo } = await supabase
+            .from('lancamentos')
+            .select('*, categorias(nome)')
+            .eq('id', subGrupoId)
+            .single();
+        
+        if (errorSubGrupo) throw errorSubGrupo;
+        
+        // Montar modal de subgrupo
+        let html = '<div class="modal fade" id="modal-subgrupo" tabindex="-1">';
+        html += '<div class="modal-dialog modal-lg">';
+        html += '<div class="modal-content">';
+        html += '<div class="modal-header bg-info text-white">';
+        html += '<h5 class="modal-title">📦 Detalhes do Subgrupo</h5>';
+        html += '<button type="button" class="btn-close btn-close-white" onclick="fecharModalSubGrupo(' + grupoPaiId + ')"></button>';
+        html += '</div>';
+        html += '<div class="modal-body">';
+        html += '<div class="alert alert-info">';
+        html += '<strong>Descrição:</strong> ' + subGrupo.descricao + '<br>';
+        html += '<strong>Valor Total:</strong> R$ ' + parseFloat(subGrupo.valor).toFixed(2) + '<br>';
+        html += '<strong>Categoria:</strong> ' + (subGrupo.categorias ? subGrupo.categorias.nome : '-');
+        html += '</div>';
+        html += '<h6>Lançamentos no Subgrupo (' + lancamentos.length + '):</h6>';
+        html += '<div class="table-responsive">';
+        html += '<table class="table table-sm">';
+        html += '<thead><tr>';
+        html += '<th>Data</th>';
+        html += '<th>Descrição</th>';
+        html += '<th>Valor</th>';
+        html += '<th>Tipo</th>';
+        html += '<th>Status</th>';
+        html += '</tr></thead>';
+        html += '<tbody>';
+        
+        lancamentos.forEach(l => {
+            const classeValor = l.tipo === 'receita' ? 'text-success' : 'text-danger';
+            const temSubGrupos = l.is_grupo === true;
+            
+            html += '<tr>';
+            html += '<td>' + formatDate(l.data) + '</td>';
+            html += '<td>' + l.descricao + (temSubGrupos ? ' 📦' : '') + '</td>';
+            html += '<td class="' + classeValor + '">R$ ' + parseFloat(l.valor).toFixed(2) + '</td>';
+            html += '<td><span class="badge ' + (l.tipo === 'receita' ? 'bg-success' : 'bg-danger') + '">' + l.tipo + '</span></td>';
+            html += '<td><span class="badge ' + (l.status === 'pago' ? 'bg-success' : 'bg-warning') + '">' + (l.status === 'pago' ? 'Pago' : 'Pendente') + '</span></td>';
+            html += '</tr>';
+            
+            // Se este item também é um grupo, podemos expandir recursivamente
+            if (temSubGrupos) {
+                html += '<tr class="table-secondary">';
+                html += '<td colspan="5" class="text-center">';
+                html += '<button class="btn btn-sm btn-info" onclick="verDetalhesSubGrupo(' + l.id + ', ' + subGrupoId + ')">';
+                html += '<i class="bi bi-folder-open"></i> Ver itens deste subgrupo';
+                html += '</button>';
+                html += '</td>';
+                html += '</tr>';
+            }
+        });
+        
+        html += '</tbody></table>';
+        html += '</div>';
+        html += '</div>';
+        html += '<div class="modal-footer">';
+        html += '<button type="button" class="btn btn-secondary" onclick="fecharModalSubGrupo(' + grupoPaiId + ')">Voltar</button>';
+        html += '</div>';
+        html += '</div>';
+        html += '</div>';
+        html += '</div>';
+        
+        // Remover modal anterior se existir
+        const modalExistente = document.getElementById('modal-subgrupo');
+        if (modalExistente) modalExistente.remove();
+        
+        // Adicionar modal ao DOM
+        document.body.insertAdjacentHTML('beforeend', html);
+        
+        // Mostrar modal
+        const modal = new bootstrap.Modal(document.getElementById('modal-subgrupo'));
+        modal.show();
+        
+    } catch (err) {
+        console.error('Erro ao ver detalhes do subgrupo:', err);
+        showAlert('Erro ao carregar detalhes do subgrupo: ' + err.message, 'danger');
+    }
+}
+
+function fecharModalSubGrupo(grupoPaiId) {
+    const modalElement = document.getElementById('modal-subgrupo');
+    const modal = bootstrap.Modal.getInstance(modalElement);
+    if (modal) {
+        modal.hide();
+        modalElement.addEventListener('hidden.bs.modal', function() {
+            document.querySelectorAll('.modal-backdrop').forEach(backdrop => backdrop.remove());
+            document.body.classList.remove('modal-open');
+            document.body.style.removeProperty('overflow');
+            document.body.style.removeProperty('padding-right');
+            modalElement.remove();
+            
+            // Reabrir o modal do grupo pai se fornecido
+            if (grupoPaiId) {
+                setTimeout(() => verDetalhesGrupo(grupoPaiId), 300);
+            }
+        }, { once: true });
+    }
+}
+
 // Expor funções globalmente
 window.showPage = showPage;
 window.logout = logout;
@@ -6473,3 +6609,5 @@ window.excluirLancamentoDentroGrupo = excluirLancamentoDentroGrupo;
 window.editarLancamentoDentroGrupo = editarLancamentoDentroGrupo;
 window.fecharModalEdicaoGrupo = fecharModalEdicaoGrupo;
 window.salvarEdicaoLancamentoGrupo = salvarEdicaoLancamentoGrupo;
+window.verDetalhesSubGrupo = verDetalhesSubGrupo;
+window.fecharModalSubGrupo = fecharModalSubGrupo;
