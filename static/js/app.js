@@ -5877,10 +5877,13 @@ async function verDetalhesGrupo(grupoId) {
             html += 'title="' + (l.status === 'pago' ? 'Marcar como Pendente' : 'Marcar como Pago') + '">';
             html += '<i class="bi bi-' + (l.status === 'pago' ? 'arrow-counterclockwise' : 'check-circle') + '"></i>';
             html += '</button> ';
-            html += '<button class="btn btn-sm btn-primary" onclick="editarLancamento(' + l.id + ')" title="Editar">';
+            html += '<button class="btn btn-sm btn-primary" onclick="editarLancamentoDentroGrupo(' + l.id + ', ' + grupoId + ')" title="Editar">';
             html += '<i class="bi bi-pencil"></i>';
             html += '</button> ';
-            html += '<button class="btn btn-sm btn-danger" onclick="removerLancamentoDoGrupo(' + l.id + ', ' + grupoId + ')" title="Remover do Grupo">';
+            html += '<button class="btn btn-sm btn-warning" onclick="removerLancamentoDoGrupo(' + l.id + ', ' + grupoId + ')" title="Remover do Grupo">';
+            html += '<i class="bi bi-box-arrow-right"></i>';
+            html += '</button> ';
+            html += '<button class="btn btn-sm btn-danger" onclick="excluirLancamentoDentroGrupo(' + l.id + ', ' + grupoId + ')" title="Excluir Lançamento">';
             html += '<i class="bi bi-trash"></i>';
             html += '</button>';
             html += '</td>';
@@ -6090,7 +6093,7 @@ async function removerLancamentoDoGrupo(lancId, grupoId) {
         // Verificar quantos lançamentos restam no grupo
         const { data: restantes, error: errorRestantes } = await supabase
             .from('lancamentos_agrupados')
-            .select('id')
+            .select('lancamento_id')
             .eq('grupo_id', grupoId);
         
         if (errorRestantes) throw errorRestantes;
@@ -6148,6 +6151,280 @@ async function removerLancamentoDoGrupo(lancId, grupoId) {
     }
 }
 
+async function excluirLancamentoDentroGrupo(lancId, grupoId) {
+    if (!confirm('Deseja EXCLUIR permanentemente este lançamento? Esta ação não pode ser desfeita!')) {
+        return;
+    }
+    
+    try {
+        // Primeiro, remover da tabela de agrupamento
+        const { error: errorRemover } = await supabase
+            .from('lancamentos_agrupados')
+            .delete()
+            .eq('grupo_id', grupoId)
+            .eq('lancamento_id', lancId);
+        
+        if (errorRemover) throw errorRemover;
+        
+        // Depois, excluir o lançamento
+        const { error: errorExcluir } = await supabase
+            .from('lancamentos')
+            .delete()
+            .eq('id', lancId);
+        
+        if (errorExcluir) throw errorExcluir;
+        
+        // Verificar quantos lançamentos restam no grupo
+        const { data: restantes, error: errorRestantes } = await supabase
+            .from('lancamentos_agrupados')
+            .select('lancamento_id')
+            .eq('grupo_id', grupoId);
+        
+        if (errorRestantes) throw errorRestantes;
+        
+        // Se sobrou apenas 1 ou nenhum, desagrupar completamente
+        if (restantes.length <= 1) {
+            await desagrupar(grupoId);
+            fecharModalGrupo();
+            showAlert('Lançamento excluído e grupo desfeito pois restou apenas 1 lançamento', 'success');
+            return;
+        }
+        
+        // Recalcular valor total do grupo
+        const idsRestantes = restantes.map(r => r.lancamento_id);
+        const { data: lancs, error: errorLancs } = await supabase
+            .from('lancamentos')
+            .select('tipo, valor, status')
+            .in('id', idsRestantes);
+        
+        if (errorLancs) throw errorLancs;
+        
+        let valorTotal = 0;
+        lancs.forEach(l => {
+            valorTotal += l.tipo === 'receita' ? l.valor : -l.valor;
+        });
+        
+        const tipo = valorTotal >= 0 ? 'receita' : 'despesa';
+        valorTotal = Math.abs(valorTotal);
+        
+        // Verificar se todos estão pagos
+        const todosPagos = lancs.every(l => l.status === 'pago');
+        const statusGrupo = todosPagos ? 'pago' : 'pendente';
+        
+        // Atualizar grupo (valor, tipo e status)
+        const { error: errorUpdate } = await supabase
+            .from('lancamentos')
+            .update({ 
+                valor: valorTotal,
+                tipo: tipo,
+                status: statusGrupo
+            })
+            .eq('id', grupoId);
+        
+        if (errorUpdate) throw errorUpdate;
+        
+        showAlert('Lançamento excluído com sucesso!', 'success');
+        
+        // Reabrir modal
+        await verDetalhesGrupo(grupoId);
+        await loadLancamentos();
+        
+    } catch (err) {
+        console.error('Erro ao excluir lançamento:', err);
+        showAlert('Erro ao excluir lançamento: ' + err.message, 'danger');
+    }
+}
+
+async function editarLancamentoDentroGrupo(lancId, grupoId) {
+    try {
+        // Buscar dados do lançamento
+        const { data: lanc, error } = await supabase
+            .from('lancamentos')
+            .select('*, categorias(id, nome)')
+            .eq('id', lancId)
+            .single();
+        
+        if (error) throw error;
+        
+        // Buscar todas as categorias
+        const { data: categorias, error: errorCat } = await supabase
+            .from('categorias')
+            .select('*')
+            .eq('usuario_id', currentUser.id)
+            .order('nome');
+        
+        if (errorCat) throw errorCat;
+        
+        // Montar modal de edição
+        let html = '<div class="modal fade" id="modal-editar-lancamento-grupo" tabindex="-1">';
+        html += '<div class="modal-dialog">';
+        html += '<div class="modal-content">';
+        html += '<div class="modal-header">';
+        html += '<h5 class="modal-title">Editar Lançamento</h5>';
+        html += '<button type="button" class="btn-close" onclick="fecharModalEdicaoGrupo()"></button>';
+        html += '</div>';
+        html += '<div class="modal-body">';
+        html += '<form id="form-editar-lancamento-grupo">';
+        html += '<div class="mb-3">';
+        html += '<label class="form-label">Descrição</label>';
+        html += '<input type="text" class="form-control" id="edit-descricao-grupo" value="' + lanc.descricao + '" required>';
+        html += '</div>';
+        html += '<div class="mb-3">';
+        html += '<label class="form-label">Valor</label>';
+        html += '<input type="number" step="0.01" class="form-control" id="edit-valor-grupo" value="' + lanc.valor + '" required>';
+        html += '</div>';
+        html += '<div class="mb-3">';
+        html += '<label class="form-label">Data</label>';
+        html += '<input type="date" class="form-control" id="edit-data-grupo" value="' + lanc.data + '" required>';
+        html += '</div>';
+        html += '<div class="mb-3">';
+        html += '<label class="form-label">Categoria</label>';
+        html += '<select class="form-select" id="edit-categoria-grupo" required>';
+        categorias.forEach(c => {
+            const selected = lanc.categoria_id === c.id ? 'selected' : '';
+            html += '<option value="' + c.id + '" ' + selected + '>' + c.nome + '</option>';
+        });
+        html += '</select>';
+        html += '</div>';
+        html += '<div class="mb-3">';
+        html += '<label class="form-label">Tipo</label>';
+        html += '<select class="form-select" id="edit-tipo-grupo" required>';
+        html += '<option value="receita" ' + (lanc.tipo === 'receita' ? 'selected' : '') + '>Receita</option>';
+        html += '<option value="despesa" ' + (lanc.tipo === 'despesa' ? 'selected' : '') + '>Despesa</option>';
+        html += '</select>';
+        html += '</div>';
+        html += '<div class="mb-3">';
+        html += '<label class="form-label">Status</label>';
+        html += '<select class="form-select" id="edit-status-grupo" required>';
+        html += '<option value="pendente" ' + (lanc.status === 'pendente' ? 'selected' : '') + '>Pendente</option>';
+        html += '<option value="pago" ' + (lanc.status === 'pago' ? 'selected' : '') + '>Pago</option>';
+        html += '</select>';
+        html += '</div>';
+        html += '</form>';
+        html += '</div>';
+        html += '<div class="modal-footer">';
+        html += '<button type="button" class="btn btn-secondary" onclick="fecharModalEdicaoGrupo()">Cancelar</button>';
+        html += '<button type="button" class="btn btn-primary" onclick="salvarEdicaoLancamentoGrupo(' + lancId + ', ' + grupoId + ')">Salvar</button>';
+        html += '</div>';
+        html += '</div>';
+        html += '</div>';
+        html += '</div>';
+        
+        // Remover modal anterior se existir
+        const modalExistente = document.getElementById('modal-editar-lancamento-grupo');
+        if (modalExistente) modalExistente.remove();
+        
+        // Adicionar modal ao DOM
+        document.body.insertAdjacentHTML('beforeend', html);
+        
+        // Mostrar modal
+        const modal = new bootstrap.Modal(document.getElementById('modal-editar-lancamento-grupo'));
+        modal.show();
+        
+    } catch (err) {
+        console.error('Erro ao abrir edição:', err);
+        showAlert('Erro ao abrir edição: ' + err.message, 'danger');
+    }
+}
+
+function fecharModalEdicaoGrupo() {
+    const modalElement = document.getElementById('modal-editar-lancamento-grupo');
+    const modal = bootstrap.Modal.getInstance(modalElement);
+    if (modal) {
+        modal.hide();
+        modalElement.addEventListener('hidden.bs.modal', function() {
+            const backdrop = document.querySelector('.modal-backdrop');
+            if (backdrop) backdrop.remove();
+            document.body.classList.remove('modal-open');
+            document.body.style.removeProperty('overflow');
+            document.body.style.removeProperty('padding-right');
+            modalElement.remove();
+        }, { once: true });
+    }
+}
+
+async function salvarEdicaoLancamentoGrupo(lancId, grupoId) {
+    try {
+        const descricao = document.getElementById('edit-descricao-grupo').value;
+        const valor = parseFloat(document.getElementById('edit-valor-grupo').value);
+        const data = document.getElementById('edit-data-grupo').value;
+        const categoria_id = parseInt(document.getElementById('edit-categoria-grupo').value);
+        const tipo = document.getElementById('edit-tipo-grupo').value;
+        const status = document.getElementById('edit-status-grupo').value;
+        
+        if (!descricao || !valor || !data || !categoria_id) {
+            showAlert('Preencha todos os campos', 'warning');
+            return;
+        }
+        
+        // Atualizar lançamento
+        const { error } = await supabase
+            .from('lancamentos')
+            .update({
+                descricao: descricao,
+                valor: valor,
+                data: data,
+                categoria_id: categoria_id,
+                tipo: tipo,
+                status: status
+            })
+            .eq('id', lancId);
+        
+        if (error) throw error;
+        
+        // Recalcular valor e status do grupo
+        const { data: agrupados, error: errorAgrupados } = await supabase
+            .from('lancamentos_agrupados')
+            .select('lancamento_id')
+            .eq('grupo_id', grupoId);
+        
+        if (errorAgrupados) throw errorAgrupados;
+        
+        const ids = agrupados.map(a => a.lancamento_id);
+        
+        const { data: lancs, error: errorLancs } = await supabase
+            .from('lancamentos')
+            .select('tipo, valor, status')
+            .in('id', ids);
+        
+        if (errorLancs) throw errorLancs;
+        
+        let valorTotal = 0;
+        lancs.forEach(l => {
+            valorTotal += l.tipo === 'receita' ? l.valor : -l.valor;
+        });
+        
+        const tipoGrupo = valorTotal >= 0 ? 'receita' : 'despesa';
+        valorTotal = Math.abs(valorTotal);
+        
+        const todosPagos = lancs.every(l => l.status === 'pago');
+        const statusGrupo = todosPagos ? 'pago' : 'pendente';
+        
+        // Atualizar grupo
+        const { error: errorUpdate } = await supabase
+            .from('lancamentos')
+            .update({ 
+                valor: valorTotal,
+                tipo: tipoGrupo,
+                status: statusGrupo
+            })
+            .eq('id', grupoId);
+        
+        if (errorUpdate) throw errorUpdate;
+        
+        fecharModalEdicaoGrupo();
+        showAlert('Lançamento atualizado com sucesso!', 'success');
+        
+        // Reabrir modal do grupo
+        await verDetalhesGrupo(grupoId);
+        await loadLancamentos();
+        
+    } catch (err) {
+        console.error('Erro ao salvar edição:', err);
+        showAlert('Erro ao salvar edição: ' + err.message, 'danger');
+    }
+}
+
 // Expor funções globalmente
 window.showPage = showPage;
 window.logout = logout;
@@ -6185,3 +6462,7 @@ window.fecharModalGrupo = fecharModalGrupo;
 window.toggleStatusGrupo = toggleStatusGrupo;
 window.toggleStatusLancamentoGrupo = toggleStatusLancamentoGrupo;
 window.removerLancamentoDoGrupo = removerLancamentoDoGrupo;
+window.excluirLancamentoDentroGrupo = excluirLancamentoDentroGrupo;
+window.editarLancamentoDentroGrupo = editarLancamentoDentroGrupo;
+window.fecharModalEdicaoGrupo = fecharModalEdicaoGrupo;
+window.salvarEdicaoLancamentoGrupo = salvarEdicaoLancamentoGrupo;
