@@ -5682,8 +5682,23 @@ async function adicionarAGrupoExistente() {
 }
 
 function fecharModalSelecaoGrupo() {
-    const modal = bootstrap.Modal.getInstance(document.getElementById('modal-selecao-grupo'));
-    if (modal) modal.hide();
+    const modalElement = document.getElementById('modal-selecao-grupo');
+    const modal = bootstrap.Modal.getInstance(modalElement);
+    if (modal) {
+        modal.hide();
+        // Remover backdrop e modal após fechar
+        modalElement.addEventListener('hidden.bs.modal', function() {
+            // Remover backdrop manualmente
+            const backdrop = document.querySelector('.modal-backdrop');
+            if (backdrop) backdrop.remove();
+            // Remover classes do body
+            document.body.classList.remove('modal-open');
+            document.body.style.removeProperty('overflow');
+            document.body.style.removeProperty('padding-right');
+            // Remover o modal do DOM
+            modalElement.remove();
+        }, { once: true });
+    }
 }
 
 async function confirmarAdicaoAGrupo(grupoId) {
@@ -5900,8 +5915,23 @@ async function verDetalhesGrupo(grupoId) {
 }
 
 function fecharModalGrupo() {
-    const modal = bootstrap.Modal.getInstance(document.getElementById('modal-grupo'));
-    if (modal) modal.hide();
+    const modalElement = document.getElementById('modal-grupo');
+    const modal = bootstrap.Modal.getInstance(modalElement);
+    if (modal) {
+        modal.hide();
+        // Remover backdrop e modal após fechar
+        modalElement.addEventListener('hidden.bs.modal', function() {
+            // Remover backdrop manualmente
+            const backdrop = document.querySelector('.modal-backdrop');
+            if (backdrop) backdrop.remove();
+            // Remover classes do body
+            document.body.classList.remove('modal-open');
+            document.body.style.removeProperty('overflow');
+            document.body.style.removeProperty('padding-right');
+            // Remover o modal do DOM
+            modalElement.remove();
+        }, { once: true });
+    }
 }
 
 async function desagrupar(grupoId) {
