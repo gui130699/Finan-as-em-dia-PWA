@@ -60,7 +60,7 @@ def autenticar(email, senha):
         if response.data:
             user = response.data[0]
             # Verificar senha
-            if bcrypt.checkpw(senha.encode('utf-8'), user['senha'].encode('utf-8')):
+            if bcrypt.checkpw(senha.encode('utf-8'), user['senha'].encode('utf-8').rstrip()):
                 return user
         
         return None
