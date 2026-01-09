@@ -1,5 +1,5 @@
-const CACHE_NAME = 'financeiro-em-dia-v2';
-const BASE_PATH = window.location.pathname.split('/').slice(0, -1).join('/') || '';
+const CACHE_NAME = 'financeiro-em-dia-v3';
+const BASE_PATH = '/Finan-as-em-dia-PWA';
 const OFFLINE_URL = BASE_PATH + '/static/offline.html';
 
 // Recursos essenciais para cachear na instalação
