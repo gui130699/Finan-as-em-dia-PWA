@@ -1,14 +1,15 @@
-const CACHE_NAME = 'financeiro-em-dia-v1';
-const OFFLINE_URL = '/Finan-as-em-dia-PWA/templates/offline.html';
+const CACHE_NAME = 'financeiro-em-dia-v2';
+const BASE_PATH = window.location.pathname.split('/').slice(0, -1).join('/') || '';
+const OFFLINE_URL = BASE_PATH + '/static/offline.html';
 
 // Recursos essenciais para cachear na instalação
 const CORE_CACHE = [
-  '/Finan-as-em-dia-PWA/',
-  '/Finan-as-em-dia-PWA/index.html',
-  '/Finan-as-em-dia-PWA/static/css/estilo.css',
-  '/Finan-as-em-dia-PWA/static/js/app.js',
-  '/Finan-as-em-dia-PWA/static/js/scripts.js',
-  '/Finan-as-em-dia-PWA/templates/offline.html',
+  BASE_PATH + '/',
+  BASE_PATH + '/index.html',
+  BASE_PATH + '/static/css/estilo.css',
+  BASE_PATH + '/static/js/app.js',
+  BASE_PATH + '/static/js/scripts.js',
+  BASE_PATH + '/static/offline.html',
   'https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css',
   'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2'
 ];
