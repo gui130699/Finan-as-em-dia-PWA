@@ -1,3 +1,4 @@
+﻿# -*- coding: utf-8 -*-
 # database.py - Gerenciamento do banco de dados Supabase (PostgreSQL)
 
 from supabase import create_client, Client
@@ -16,17 +17,17 @@ def conectar():
 def inicializar_banco():
     """
     Inicializa a conexão com o Supabase.
-    As tabelas devem ser criadas diretamente no Supabase usando o arquivo criar_tabelas_supabase.sql
+    As tabelas devem ser criadas diretamente no Supabase usando o arquivo criar_tabelas_supabase.sql 
     """
     try:
         supabase = conectar()
         # Testa a conexão fazendo uma query simples
         supabase.table('usuarios').select('id').limit(1).execute()
-        print("✓ Conexão com Supabase estabelecida com sucesso!")
+        print("[OK] Conexão com Supabase estabelecida com sucesso!")
         return True
     except Exception as e:
-        print(f"✗ Erro ao conectar com Supabase: {e}")
-        print("\n⚠ IMPORTANTE: Execute o SQL em criar_tabelas_supabase.sql no painel do Supabase primeiro!")
+        print(f"[ERRO] Erro ao conectar com Supabase: {e}")
+        print("\n[IMPORTANTE] Execute o SQL em criar_tabelas_supabase.sql no painel do Supabase primeiro!")
         return False
 
 def executar_query(query, params=(), commit=False):
