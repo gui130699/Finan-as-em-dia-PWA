@@ -206,6 +206,20 @@ Use o Lighthouse no Chrome DevTools:
 
 **Meta**: Score 90+ para PWA ✅
 
+## 🌐 Acessando via GitHub Pages
+
+A aplicação está disponível como PWA estática em:
+**https://gui130699.github.io/Finan-as-em-dia-PWA/**
+
+Para configurar seu próprio repositório:
+
+1. **Vá para Settings > Pages**
+2. **Source**: Selecione "Deploy from a branch"
+3. **Branch**: Escolha `main` e pasta `/root`
+4. **Save** e aguarde o deploy (2-3 minutos)
+
+**Nota**: A aplicação é 100% cliente (JavaScript + Supabase), não precisa de servidor Python!
+
 ## 🔍 Solução de Problemas
 
 ### Service Worker não registra
