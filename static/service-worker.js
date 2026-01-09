@@ -1,4 +1,4 @@
-const CACHE_NAME = 'financeiro-em-dia-v3';
+const CACHE_NAME = 'financeiro-em-dia-v4';
 const BASE_PATH = '/Finan-as-em-dia-PWA';
 const OFFLINE_URL = BASE_PATH + '/static/offline.html';
 
