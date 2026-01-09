@@ -9,7 +9,14 @@
 const SUPABASE_URL = window.SUPABASE_CONFIG?.url || '';
 const SUPABASE_KEY = window.SUPABASE_CONFIG?.key || '';
 
-const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+// Criar cliente Supabase apenas se não existir
+let supabase;
+if (!window.supabaseClient) {
+    supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    window.supabaseClient = supabase;
+} else {
+    supabase = window.supabaseClient;
+}
 
 // Estado global
 let currentUser = null;
