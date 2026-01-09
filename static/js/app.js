@@ -1,7 +1,7 @@
 // ============================================
 // FINANCEIRO EM DIA - PWA
 // Todas as funcionalidades do Flask convertidas para JavaScript
-// Versão: 2025-11-15 00:00 - Modal seleção parcelas e checkbox parcelado
+// Versão: 2026-01-09 - Correção redeclaração supabase
 // ============================================
 
 // Configuração do Supabase
@@ -9,14 +9,11 @@
 const SUPABASE_URL = window.SUPABASE_CONFIG?.url || '';
 const SUPABASE_KEY = window.SUPABASE_CONFIG?.key || '';
 
-// Criar cliente Supabase apenas se não existir
-let supabase;
-if (!window.supabaseClient) {
-    supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-    window.supabaseClient = supabase;
-} else {
-    supabase = window.supabaseClient;
+// Criar cliente Supabase global apenas uma vez
+if (typeof window.supabaseClient === 'undefined') {
+    window.supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 }
+const supabase = window.supabaseClient;
 
 // Estado global
 let currentUser = null;
