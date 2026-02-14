@@ -1,4 +1,4 @@
-# models.py - Funções de acesso e manipulação de dados (Supabase/PostgreSQL)
+# models.py - Funções de acesso e manipulação de dados (PostgreSQL puro)
 
 import database
 import bcrypt
@@ -18,11 +18,10 @@ from reportlab.lib.units import cm
 def criar_usuario(nome, email, senha):
     """Cria um novo usuário com senha criptografada"""
     try:
-        supabase = database.conectar()
-        
         # Verificar se o email já existe
-        check = supabase.table('usuarios').select('id').eq('email', email).execute()
-        if check.data:
+        query = "SELECT id FROM usuarios WHERE email = %s"
+        check = database.executar_query(query, (email,), fetch=True)
+        if check:
             print(f"❌ Email '{email}' já está cadastrado!")
             return False
         
@@ -30,14 +29,11 @@ def criar_usuario(nome, email, senha):
         senha_hash = bcrypt.hashpw(senha.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
         
         # Inserir usuário
-        response = supabase.table('usuarios').insert({
-            'nome': nome,
-            'email': email,
-            'senha': senha_hash
-        }).execute()
+        query = "INSERT INTO usuarios (nome, email, senha) VALUES (%s, %s, %s) RETURNING id"
+        resultado = database.executar_query(query, (nome, email, senha_hash), commit=True, fetch=True)
         
-        if response.data:
-            user_id = response.data[0]['id']
+        if resultado:
+            user_id = resultado[0]['id']
             print(f"✓ Usuário '{nome}' criado com ID: {user_id}")
             # Criar categorias padrão
             criar_categorias_padrao(user_id)
@@ -46,19 +42,17 @@ def criar_usuario(nome, email, senha):
         
     except Exception as e:
         print(f"❌ Erro ao criar usuário: {e}")
-
         traceback.print_exc()
         return False
 
 def autenticar(email, senha):
     """Autentica um usuário e retorna seus dados"""
     try:
-        supabase = database.conectar()
+        query = "SELECT * FROM usuarios WHERE email = %s"
+        resultado = database.executar_query(query, (email,), fetch=True)
         
-        response = supabase.table('usuarios').select('*').eq('email', email).execute()
-        
-        if response.data:
-            user = response.data[0]
+        if resultado:
+            user = resultado[0]
             # Verificar senha
             if bcrypt.checkpw(senha.encode('utf-8'), user['senha'].encode('utf-8').rstrip()):
                 return user
@@ -71,9 +65,9 @@ def autenticar(email, senha):
 def listar_usuarios():
     """Lista todos os usuários"""
     try:
-        supabase = database.conectar()
-        response = supabase.table('usuarios').select('id, nome, email, data_criacao').execute()
-        return response.data if response.data else []
+        query = "SELECT id, nome, email, data_criacao FROM usuarios"
+        resultado = database.executar_query(query, (), fetch=True)
+        return resultado if resultado else []
     except Exception as e:
         print(f"Erro ao listar usuários: {e}")
         return []
@@ -81,10 +75,9 @@ def listar_usuarios():
 def redefinir_senha(user_id, nova_senha):
     """Redefine a senha de um usuário"""
     try:
-        supabase = database.conectar()
         senha_hash = bcrypt.hashpw(nova_senha.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
-        
-        supabase.table('usuarios').update({'senha': senha_hash}).eq('id', user_id).execute()
+        query = "UPDATE usuarios SET senha = %s WHERE id = %s"
+        database.executar_query(query, (senha_hash, user_id), commit=True, fetch=False)
         return True
     except Exception as e:
         print(f"Erro ao redefinir senha: {e}")
@@ -95,21 +88,22 @@ def redefinir_senha(user_id, nova_senha):
 def get_config(user_id, chave):
     """Obtém um valor de configuração"""
     try:
-        supabase = database.conectar()
-        response = supabase.table('app_config').select('valor').eq('usuario_id', user_id).eq('chave', chave).execute()
-        return response.data[0]['valor'] if response.data else None
+        query = "SELECT valor FROM app_config WHERE usuario_id = %s AND chave = %s"
+        resultado = database.executar_query(query, (user_id, chave), fetch=True)
+        return resultado[0]['valor'] if resultado else None
     except:
         return None
 
 def set_config(user_id, chave, valor):
     """Define um valor de configuração"""
     try:
-        supabase = database.conectar()
-        supabase.table('app_config').upsert({
-            'usuario_id': user_id,
-            'chave': chave,
-            'valor': valor
-        }).execute()
+        query = """
+            INSERT INTO app_config (usuario_id, chave, valor) 
+            VALUES (%s, %s, %s)
+            ON CONFLICT (usuario_id, chave) 
+            DO UPDATE SET valor = EXCLUDED.valor
+        """
+        database.executar_query(query, (user_id, chave, valor), commit=True, fetch=False)
         return True
     except Exception as e:
         print(f"Erro ao salvar config: {e}")
@@ -135,27 +129,22 @@ def criar_categorias_padrao(user_id):
     ]
     
     try:
-        supabase = database.conectar()
-        categorias = [{'usuario_id': user_id, **cat} for cat in categorias_padrao]
-        response = supabase.table('categorias').insert(categorias).execute()
+        query = "INSERT INTO categorias (usuario_id, nome, tipo) VALUES (%s, %s, %s)"
+        params_list = [(user_id, cat['nome'], cat['tipo']) for cat in categorias_padrao]
+        database.executar_many(query, params_list)
         print(f"✓ {len(categorias_padrao)} categorias padrão criadas para usuário {user_id}")
         return True
     except Exception as e:
         print(f"❌ Erro ao criar categorias padrão: {e}")
-
         traceback.print_exc()
         return False
 
 def criar_categoria(user_id, nome, tipo):
     """Cria uma nova categoria"""
     try:
-        supabase = database.conectar()
-        response = supabase.table('categorias').insert({
-            'usuario_id': user_id,
-            'nome': nome,
-            'tipo': tipo
-        }).execute()
-        return response.data[0]['id'] if response.data else None
+        query = "INSERT INTO categorias (usuario_id, nome, tipo) VALUES (%s, %s, %s) RETURNING id"
+        resultado = database.executar_query(query, (user_id, nome, tipo), commit=True, fetch=True)
+        return resultado[0]['id'] if resultado else None
     except Exception as e:
         print(f"Erro ao criar categoria: {e}")
         return None
@@ -163,14 +152,14 @@ def criar_categoria(user_id, nome, tipo):
 def listar_categorias(user_id, tipo=None):
     """Lista categorias de um usuário"""
     try:
-        supabase = database.conectar()
-        query = supabase.table('categorias').select('*').eq('usuario_id', user_id)
-        
         if tipo:
-            query = query.eq('tipo', tipo)
+            query = "SELECT * FROM categorias WHERE usuario_id = %s AND tipo = %s ORDER BY nome"
+            resultado = database.executar_query(query, (user_id, tipo), fetch=True)
+        else:
+            query = "SELECT * FROM categorias WHERE usuario_id = %s ORDER BY nome"
+            resultado = database.executar_query(query, (user_id,), fetch=True)
         
-        response = query.order('nome').execute()
-        return response.data if response.data else []
+        return resultado if resultado else []
     except Exception as e:
         print(f"Erro ao listar categorias: {e}")
         return []
@@ -178,20 +167,17 @@ def listar_categorias(user_id, tipo=None):
 def obter_categoria(categoria_id):
     """Obtém uma categoria pelo ID"""
     try:
-        supabase = database.conectar()
-        response = supabase.table('categorias').select('*').eq('id', categoria_id).execute()
-        return response.data[0] if response.data else None
+        query = "SELECT * FROM categorias WHERE id = %s"
+        resultado = database.executar_query(query, (categoria_id,), fetch=True)
+        return resultado[0] if resultado else None
     except:
         return None
 
 def atualizar_categoria(categoria_id, nome, tipo):
     """Atualiza uma categoria"""
     try:
-        supabase = database.conectar()
-        supabase.table('categorias').update({
-            'nome': nome,
-            'tipo': tipo
-        }).eq('id', categoria_id).execute()
+        query = "UPDATE categorias SET nome = %s, tipo = %s WHERE id = %s"
+        database.executar_query(query, (nome, tipo, categoria_id), commit=True, fetch=False)
         return True
     except Exception as e:
         print(f"Erro ao atualizar categoria: {e}")
@@ -200,8 +186,8 @@ def atualizar_categoria(categoria_id, nome, tipo):
 def excluir_categoria(categoria_id):
     """Exclui uma categoria (apenas se não houver lançamentos)"""
     try:
-        supabase = database.conectar()
-        supabase.table('categorias').delete().eq('id', categoria_id).execute()
+        query = "DELETE FROM categorias WHERE id = %s"
+        database.executar_query(query, (categoria_id,), commit=True, fetch=False)
         return True
     except Exception as e:
         print(f"Erro ao excluir categoria: {e}")
@@ -214,86 +200,82 @@ def inserir_lancamento(user_id, tipo, categoria_id, descricao, valor, data, stat
                       numero_contrato=None, conta_fixa_id=None):
     """Insere um novo lançamento (ou múltiplas parcelas se for parcelado)"""
     try:
-        supabase = database.conectar()
-        
         # Se for parcelado, criar todas as parcelas
         if eh_parcelado and total_parcelas and total_parcelas > 1:
-            from datetime import datetime
-
-            
             data_obj = datetime.strptime(data, '%Y-%m-%d')
             ids_criados = []
+            
+            query = """
+                INSERT INTO lancamentos 
+                (usuario_id, tipo, categoria_id, descricao, valor, data, status, observacoes, 
+                 eh_parcelado, parcela_atual, total_parcelas, numero_contrato, conta_fixa_id)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                RETURNING id
+            """
             
             for i in range(1, total_parcelas + 1):
                 # Calcular data da parcela (adicionar meses)
                 data_parcela = data_obj + relativedelta(months=i-1)
                 
-                lancamento = {
-                    'usuario_id': user_id,
-                    'tipo': tipo,
-                    'categoria_id': categoria_id,
-                    'descricao': f"{descricao} ({i}/{total_parcelas})",
-                    'valor': float(valor),
-                    'data': data_parcela.strftime('%Y-%m-%d'),
-                    'status': status,
-                    'observacoes': observacoes or None,
-                    'eh_parcelado': True,
-                    'parcela_atual': i,
-                    'total_parcelas': total_parcelas,
-                    'numero_contrato': numero_contrato,
-                    'conta_fixa_id': conta_fixa_id
-                }
+                params = (
+                    user_id, tipo, categoria_id, 
+                    f"{descricao} ({i}/{total_parcelas})",
+                    float(valor), data_parcela.strftime('%Y-%m-%d'),
+                    status, observacoes or None,
+                    True, i, total_parcelas, numero_contrato, conta_fixa_id
+                )
                 
-                response = supabase.table('lancamentos').insert(lancamento).execute()
-                if response.data:
-                    ids_criados.append(response.data[0]['id'])
+                resultado = database.executar_query(query, params, commit=True, fetch=True)
+                if resultado:
+                    ids_criados.append(resultado[0]['id'])
             
             return ids_criados[0] if ids_criados else None
         else:
             # Lançamento único
-            lancamento = {
-                'usuario_id': user_id,
-                'tipo': tipo,
-                'categoria_id': categoria_id,
-                'descricao': descricao,
-                'valor': float(valor),
-                'data': data,
-                'status': status,
-                'observacoes': observacoes or None,
-                'eh_parcelado': eh_parcelado,
-                'parcela_atual': parcela_atual,
-                'total_parcelas': total_parcelas,
-                'numero_contrato': numero_contrato,
-                'conta_fixa_id': conta_fixa_id
-            }
+            query = """
+                INSERT INTO lancamentos 
+                (usuario_id, tipo, categoria_id, descricao, valor, data, status, observacoes, 
+                 eh_parcelado, parcela_atual, total_parcelas, numero_contrato, conta_fixa_id)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                RETURNING id
+            """
+            params = (
+                user_id, tipo, categoria_id, descricao, float(valor), data,
+                status, observacoes or None, eh_parcelado, parcela_atual,
+                total_parcelas, numero_contrato, conta_fixa_id
+            )
             
-            response = supabase.table('lancamentos').insert(lancamento).execute()
-            return response.data[0]['id'] if response.data else None
+            resultado = database.executar_query(query, params, commit=True, fetch=True)
+            return resultado[0]['id'] if resultado else None
         
     except Exception as e:
         print(f"Erro ao inserir lançamento: {e}")
-
         traceback.print_exc()
         return None
 
 def listar_lancamentos_mes(user_id, ano, mes):
     """Lista lançamentos de um usuário em um mês específico"""
     try:
-        supabase = database.conectar()
-        
         data_inicio = f"{ano}-{mes:02d}-01"
         ultimo_dia = monthrange(ano, mes)[1]
         data_fim = f"{ano}-{mes:02d}-{ultimo_dia}"
         
-        response = supabase.table('lancamentos')\
-            .select('*, categorias(nome)')\
-            .eq('usuario_id', user_id)\
-            .gte('data', data_inicio)\
-            .lte('data', data_fim)\
-            .order('data')\
-            .execute()
+        query = """
+            SELECT l.*, c.nome as categoria_nome
+            FROM lancamentos l
+            LEFT JOIN categorias c ON l.categoria_id = c.id
+            WHERE l.usuario_id = %s AND l.data >= %s AND l.data <= %s
+            ORDER BY l.data
+        """
+        resultado = database.executar_query(query, (user_id, data_inicio, data_fim), fetch=True)
         
-        return response.data if response.data else []
+        # Ajustar estrutura para manter compatibilidade com o formato Supabase
+        if resultado:
+            for r in resultado:
+                categoria_nome = r.pop('categoria_nome', None)
+                r['categorias'] = {'nome': categoria_nome} if categoria_nome else None
+        
+        return resultado if resultado else []
         
     except Exception as e:
         print(f"Erro ao listar lançamentos: {e}")
@@ -302,27 +284,24 @@ def listar_lancamentos_mes(user_id, ano, mes):
 def obter_lancamento(lancamento_id):
     """Obtém um lançamento pelo ID"""
     try:
-        supabase = database.conectar()
-        response = supabase.table('lancamentos').select('*').eq('id', lancamento_id).execute()
-        return response.data[0] if response.data else None
+        query = "SELECT * FROM lancamentos WHERE id = %s"
+        resultado = database.executar_query(query, (lancamento_id,), fetch=True)
+        return resultado[0] if resultado else None
     except:
         return None
 
 def atualizar_lancamento(lancamento_id, tipo, categoria_id, descricao, valor, data, status, observacoes=''):
     """Atualiza um lançamento"""
     try:
-        supabase = database.conectar()
-        
-        supabase.table('lancamentos').update({
-            'tipo': tipo,
-            'categoria_id': categoria_id,
-            'descricao': descricao,
-            'valor': float(valor),
-            'data': data,
-            'status': status,
-            'observacoes': observacoes or None
-        }).eq('id', lancamento_id).execute()
-        
+        query = """
+            UPDATE lancamentos 
+            SET tipo = %s, categoria_id = %s, descricao = %s, valor = %s, 
+                data = %s, status = %s, observacoes = %s
+            WHERE id = %s
+        """
+        database.executar_query(query, (tipo, categoria_id, descricao, float(valor), 
+                                       data, status, observacoes or None, lancamento_id), 
+                               commit=True, fetch=False)
         return True
     except Exception as e:
         print(f"Erro ao atualizar lançamento: {e}")
@@ -331,12 +310,12 @@ def atualizar_lancamento(lancamento_id, tipo, categoria_id, descricao, valor, da
 def excluir_lancamentos(lancamento_id=None, numero_contrato=None):
     """Exclui lançamento(s)"""
     try:
-        supabase = database.conectar()
-        
         if lancamento_id:
-            supabase.table('lancamentos').delete().eq('id', lancamento_id).execute()
+            query = "DELETE FROM lancamentos WHERE id = %s"
+            database.executar_query(query, (lancamento_id,), commit=True, fetch=False)
         elif numero_contrato:
-            supabase.table('lancamentos').delete().eq('numero_contrato', numero_contrato).execute()
+            query = "DELETE FROM lancamentos WHERE numero_contrato = %s"
+            database.executar_query(query, (numero_contrato,), commit=True, fetch=False)
         
         return True
     except Exception as e:
@@ -351,9 +330,8 @@ def alternar_status(lancamento_id):
             return False
         
         novo_status = 'pago' if lancamento['status'] == 'pendente' else 'pendente'
-        
-        supabase = database.conectar()
-        supabase.table('lancamentos').update({'status': novo_status}).eq('id', lancamento_id).execute()
+        query = "UPDATE lancamentos SET status = %s WHERE id = %s"
+        database.executar_query(query, (novo_status, lancamento_id), commit=True, fetch=False)
         
         return True
     except Exception as e:
@@ -421,20 +399,19 @@ obter_totais_mes = calcular_resumo_mes
 def criar_conta_fixa(user_id, tipo, categoria_id, descricao, valor, dia_vencimento, observacoes=''):
     """Cria uma conta fixa recorrente"""
     try:
-        supabase = database.conectar()
-        
-        response = supabase.table('contas_fixas').insert({
-            'usuario_id': user_id,
-            'tipo': tipo,
-            'categoria_id': categoria_id,
-            'descricao': descricao,
-            'valor': float(valor),
-            'dia_vencimento': dia_vencimento,
-            'ativa': True,
-            'observacoes': observacoes or None
-        }).execute()
-        
-        return response.data[0]['id'] if response.data else None
+        query = """
+            INSERT INTO contas_fixas 
+            (usuario_id, tipo, categoria_id, descricao, valor, dia_vencimento, ativa, observacoes)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            RETURNING id
+        """
+        resultado = database.executar_query(
+            query, 
+            (user_id, tipo, categoria_id, descricao, float(valor), dia_vencimento, True, observacoes or None),
+            commit=True, 
+            fetch=True
+        )
+        return resultado[0]['id'] if resultado else None
         
     except Exception as e:
         print(f"Erro ao criar conta fixa: {e}")
@@ -443,17 +420,32 @@ def criar_conta_fixa(user_id, tipo, categoria_id, descricao, valor, dia_vencimen
 def listar_contas_fixas(user_id, apenas_ativas=True):
     """Lista contas fixas de um usuário"""
     try:
-        supabase = database.conectar()
-        
-        query = supabase.table('contas_fixas')\
-            .select('*, categorias(nome)')\
-            .eq('usuario_id', user_id)
-        
         if apenas_ativas:
-            query = query.eq('ativa', True)
+            query = """
+                SELECT cf.*, c.nome as categoria_nome
+                FROM contas_fixas cf
+                LEFT JOIN categorias c ON cf.categoria_id = c.id
+                WHERE cf.usuario_id = %s AND cf.ativa = TRUE
+                ORDER BY cf.dia_vencimento
+            """
+            resultado = database.executar_query(query, (user_id,), fetch=True)
+        else:
+            query = """
+                SELECT cf.*, c.nome as categoria_nome
+                FROM contas_fixas cf
+                LEFT JOIN categorias c ON cf.categoria_id = c.id
+                WHERE cf.usuario_id = %s
+                ORDER BY cf.dia_vencimento
+            """
+            resultado = database.executar_query(query, (user_id,), fetch=True)
         
-        response = query.order('dia_vencimento').execute()
-        return response.data if response.data else []
+        # Ajustar estrutura para manter compatibilidade com o formato Supabase
+        if resultado:
+            for r in resultado:
+                categoria_nome = r.pop('categoria_nome', None)
+                r['categorias'] = {'nome': categoria_nome} if categoria_nome else None
+        
+        return resultado if resultado else []
         
     except Exception as e:
         print(f"Erro ao listar contas fixas: {e}")
@@ -462,27 +454,27 @@ def listar_contas_fixas(user_id, apenas_ativas=True):
 def obter_conta_fixa(conta_id):
     """Obtém uma conta fixa pelo ID"""
     try:
-        supabase = database.conectar()
-        response = supabase.table('contas_fixas').select('*').eq('id', conta_id).execute()
-        return response.data[0] if response.data else None
+        query = "SELECT * FROM contas_fixas WHERE id = %s"
+        resultado = database.executar_query(query, (conta_id,), fetch=True)
+        return resultado[0] if resultado else None
     except:
         return None
 
 def atualizar_conta_fixa(conta_id, tipo, categoria_id, descricao, valor, dia_vencimento, ativa, observacoes=''):
     """Atualiza uma conta fixa"""
     try:
-        supabase = database.conectar()
-        
-        supabase.table('contas_fixas').update({
-            'tipo': tipo,
-            'categoria_id': categoria_id,
-            'descricao': descricao,
-            'valor': float(valor),
-            'dia_vencimento': dia_vencimento,
-            'ativa': ativa,
-            'observacoes': observacoes or None
-        }).eq('id', conta_id).execute()
-        
+        query = """
+            UPDATE contas_fixas 
+            SET tipo = %s, categoria_id = %s, descricao = %s, valor = %s, 
+                dia_vencimento = %s, ativa = %s, observacoes = %s
+            WHERE id = %s
+        """
+        database.executar_query(
+            query, 
+            (tipo, categoria_id, descricao, float(valor), dia_vencimento, ativa, observacoes or None, conta_id),
+            commit=True, 
+            fetch=False
+        )
         return True
     except Exception as e:
         print(f"Erro ao atualizar conta fixa: {e}")
@@ -491,8 +483,8 @@ def atualizar_conta_fixa(conta_id, tipo, categoria_id, descricao, valor, dia_ven
 def excluir_conta_fixa(conta_id):
     """Exclui uma conta fixa"""
     try:
-        supabase = database.conectar()
-        supabase.table('contas_fixas').delete().eq('id', conta_id).execute()
+        query = "DELETE FROM contas_fixas WHERE id = %s"
+        database.executar_query(query, (conta_id,), commit=True, fetch=False)
         return True
     except Exception as e:
         print(f"Erro ao excluir conta fixa: {e}")
@@ -508,15 +500,13 @@ def gerar_lancamentos_contas_fixas_mes(user_id, ano, mes):
             # Verificar se já existe lançamento desta conta neste mês
             data_venc = f"{ano}-{mes:02d}-{conta['dia_vencimento']:02d}"
             
-            supabase = database.conectar()
-            existe = supabase.table('lancamentos')\
-                .select('id')\
-                .eq('usuario_id', user_id)\
-                .eq('conta_fixa_id', conta['id'])\
-                .eq('data', data_venc)\
-                .execute()
+            query = """
+                SELECT id FROM lancamentos 
+                WHERE usuario_id = %s AND conta_fixa_id = %s AND data = %s
+            """
+            existe = database.executar_query(query, (user_id, conta['id'], data_venc), fetch=True)
             
-            if not existe.data:
+            if not existe:
                 # Criar lançamento
                 inserir_lancamento(
                     user_id=user_id,
@@ -542,33 +532,29 @@ def gerar_lancamentos_contas_fixas_mes(user_id, ano, mes):
 def listar_parcelados_pendentes(user_id):
     """Lista contratos parcelados com parcelas pendentes"""
     try:
-        supabase = database.conectar()
-        
         # Buscar lançamentos parcelados com join de categorias
-        response = supabase.table('lancamentos')\
-            .select('numero_contrato, descricao, total_parcelas, valor, tipo, categoria_id, data, status')\
-            .eq('usuario_id', user_id)\
-            .eq('eh_parcelado', True)\
-            .not_.is_('numero_contrato', 'null')\
-            .execute()
+        query = """
+            SELECT l.numero_contrato, l.descricao, l.total_parcelas, l.valor, l.tipo, 
+                   l.categoria_id, l.data, l.status, c.nome as categoria_nome
+            FROM lancamentos l
+            LEFT JOIN categorias c ON l.categoria_id = c.id
+            WHERE l.usuario_id = %s AND l.eh_parcelado = TRUE AND l.numero_contrato IS NOT NULL
+        """
+        resultado = database.executar_query(query, (user_id,), fetch=True)
         
-        if not response.data:
+        if not resultado:
             return []
         
         # Agrupar por contrato
         contratos = {}
-        for lanc in response.data:
+        for lanc in resultado:
             contrato = lanc['numero_contrato']
             if contrato not in contratos:
-                # Buscar nome da categoria
-                cat_response = supabase.table('categorias').select('nome').eq('id', lanc['categoria_id']).execute()
-                categoria_nome = cat_response.data[0]['nome'] if cat_response.data else '-'
-                
                 contratos[contrato] = {
                     'numero_contrato': contrato,
                     'descricao': lanc['descricao'],
                     'tipo': lanc['tipo'],
-                    'categoria_nome': categoria_nome,
+                    'categoria_nome': lanc['categoria_nome'] or '-',
                     'total_parcelas': lanc['total_parcelas'],
                     'valor_parcela': lanc['valor'],
                     'parcelas_pagas': 0,
@@ -589,14 +575,16 @@ def listar_parcelados_pendentes(user_id):
         resultado = [c for c in contratos.values() if c['parcelas_pendentes'] > 0]
         
         # Formatar datas
-        from datetime import datetime
         for c in resultado:
             if c['proxima_data']:
                 try:
-                    data_obj = datetime.strptime(c['proxima_data'], '%Y-%m-%d')
+                    if isinstance(c['proxima_data'], str):
+                        data_obj = datetime.strptime(c['proxima_data'], '%Y-%m-%d')
+                    else:
+                        data_obj = c['proxima_data']
                     c['proxima_data_formatada'] = data_obj.strftime('%d/%m/%Y')
                 except:
-                    c['proxima_data_formatada'] = c['proxima_data']
+                    c['proxima_data_formatada'] = str(c['proxima_data'])
             else:
                 c['proxima_data_formatada'] = '-'
         
@@ -604,27 +592,22 @@ def listar_parcelados_pendentes(user_id):
         
     except Exception as e:
         print(f"Erro ao listar parcelados: {e}")
-
         traceback.print_exc()
         return []
 
 def quitar_parcelado_integral(user_id, numero_contrato, desconto=0):
     """Quita todas as parcelas pendentes de um contrato, criando um único lançamento"""
     try:
-        supabase = database.conectar()
-        
         # Buscar todas as parcelas pendentes
-        response = supabase.table('lancamentos')\
-            .select('*')\
-            .eq('numero_contrato', numero_contrato)\
-            .eq('status', 'pendente')\
-            .order('parcela_atual')\
-            .execute()
+        query = """
+            SELECT * FROM lancamentos 
+            WHERE numero_contrato = %s AND status = 'pendente'
+            ORDER BY parcela_atual
+        """
+        parcelas = database.executar_query(query, (numero_contrato,), fetch=True)
         
-        if not response.data:
+        if not parcelas:
             return False
-        
-        parcelas = response.data
         
         # Calcular valor total
         valor_total = sum(p['valor'] for p in parcelas)
@@ -635,7 +618,6 @@ def quitar_parcelado_integral(user_id, numero_contrato, desconto=0):
         total_parcelas = len(parcelas)
         
         # Criar lançamento único de quitação
-        from datetime import datetime
         data_hoje = datetime.now().strftime('%Y-%m-%d')
         
         descricao_base = primeira['descricao']
@@ -643,58 +625,54 @@ def quitar_parcelado_integral(user_id, numero_contrato, desconto=0):
         if '(' in descricao_base and ')' in descricao_base:
             descricao_base = descricao_base[:descricao_base.rfind('(')].strip()
         
-        lancamento_quitacao = {
-            'usuario_id': user_id,
-            'tipo': primeira['tipo'],
-            'categoria_id': primeira['categoria_id'],
-            'descricao': f"Quitação {descricao_base}",
-            'valor': valor_com_desconto,
-            'data': data_hoje,
-            'status': 'pago',
-            'observacoes': f"Quitação integral de {total_parcelas} parcelas. " +
-                          (f"Desconto: R$ {desconto:.2f}. " if desconto > 0 else "") +
-                          f"Valor original: R$ {valor_total:.2f}",
-            'eh_parcelado': False,
-            'parcela_atual': None,
-            'total_parcelas': None,
-            'numero_contrato': None,
-            'conta_fixa_id': primeira.get('conta_fixa_id')
-        }
+        query_insert = """
+            INSERT INTO lancamentos 
+            (usuario_id, tipo, categoria_id, descricao, valor, data, status, observacoes, 
+             eh_parcelado, parcela_atual, total_parcelas, numero_contrato, conta_fixa_id)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        """
         
-        supabase.table('lancamentos').insert(lancamento_quitacao).execute()
+        observacoes = (f"Quitação integral de {total_parcelas} parcelas. " +
+                      (f"Desconto: R$ {desconto:.2f}. " if desconto > 0 else "") +
+                      f"Valor original: R$ {valor_total:.2f}")
+        
+        params = (
+            user_id, primeira['tipo'], primeira['categoria_id'],
+            f"Quitação {descricao_base}", valor_com_desconto, data_hoje,
+            'pago', observacoes, False, None, None, None, primeira.get('conta_fixa_id')
+        )
+        
+        database.executar_query(query_insert, params, commit=True, fetch=False)
         
         # Excluir todas as parcelas pendentes
         ids_para_excluir = [p['id'] for p in parcelas]
-        supabase.table('lancamentos').delete().in_('id', ids_para_excluir).execute()
+        placeholders = ','.join(['%s'] * len(ids_para_excluir))
+        query_delete = f"DELETE FROM lancamentos WHERE id IN ({placeholders})"
+        database.executar_query(query_delete, tuple(ids_para_excluir), commit=True, fetch=False)
         
         return True
         
     except Exception as e:
         print(f"Erro ao quitar parcelado integral: {e}")
-
         traceback.print_exc()
         return False
 
 def quitar_parcelado_parcial(numero_contrato, numero_parcelas):
     """Quita um número específico de parcelas pendentes"""
     try:
-        supabase = database.conectar()
-        
         # Buscar parcelas pendentes ordenadas
-        response = supabase.table('lancamentos')\
-            .select('id')\
-            .eq('numero_contrato', numero_contrato)\
-            .eq('status', 'pendente')\
-            .order('parcela_atual')\
-            .limit(numero_parcelas)\
-            .execute()
+        query = """
+            SELECT id FROM lancamentos 
+            WHERE numero_contrato = %s AND status = 'pendente'
+            ORDER BY parcela_atual
+            LIMIT %s
+        """
+        resultado = database.executar_query(query, (numero_contrato, numero_parcelas), fetch=True)
         
         # Atualizar cada parcela
-        for lanc in response.data:
-            supabase.table('lancamentos')\
-                .update({'status': 'pago'})\
-                .eq('id', lanc['id'])\
-                .execute()
+        for lanc in resultado:
+            query_update = "UPDATE lancamentos SET status = 'pago' WHERE id = %s"
+            database.executar_query(query_update, (lanc['id'],), commit=True, fetch=False)
         
         return True
     except Exception as e:
@@ -704,64 +682,57 @@ def quitar_parcelado_parcial(numero_contrato, numero_parcelas):
 def quitar_parcelas_selecionadas(user_id, contrato_id, parcelas_ids, desconto=0):
     """Quita parcelas específicas selecionadas, opcionalmente com desconto"""
     try:
-        supabase = database.conectar()
-        
         if not parcelas_ids:
             return False
         
         # Se houver desconto, criar um lançamento único com o valor total - desconto
         if desconto > 0:
             # Buscar informações das parcelas selecionadas
-            response = supabase.table('lancamentos')\
-                .select('*')\
-                .in_('id', parcelas_ids)\
-                .execute()
+            placeholders = ','.join(['%s'] * len(parcelas_ids))
+            query = f"SELECT * FROM lancamentos WHERE id IN ({placeholders})"
+            resultado = database.executar_query(query, tuple(parcelas_ids), fetch=True)
             
-            if response.data:
+            if resultado:
                 # Calcular valor total
-                valor_total = sum(p['valor'] for p in response.data)
+                valor_total = sum(p['valor'] for p in resultado)
                 valor_com_desconto = valor_total - desconto
                 
                 # Pegar dados da primeira parcela como referência
-                primeira = response.data[0]
+                primeira = resultado[0]
                 
                 # Criar lançamento de quitação
-                from datetime import datetime
                 data_hoje = datetime.now().strftime('%Y-%m-%d')
                 
-                lancamento_quitacao = {
-                    'usuario_id': user_id,
-                    'tipo': primeira['tipo'],
-                    'categoria_id': primeira['categoria_id'],
-                    'descricao': f"Quitação {primeira['descricao']} - {len(parcelas_ids)} parcelas",
-                    'valor': valor_com_desconto,
-                    'data': data_hoje,
-                    'status': 'pago',
-                    'observacoes': f"Quitação com desconto de R$ {desconto:.2f}. Valor original: R$ {valor_total:.2f}",
-                    'eh_parcelado': False,
-                    'parcela_atual': None,
-                    'total_parcelas': None,
-                    'numero_contrato': None,
-                    'conta_fixa_id': None
-                }
+                query_insert = """
+                    INSERT INTO lancamentos 
+                    (usuario_id, tipo, categoria_id, descricao, valor, data, status, observacoes, 
+                     eh_parcelado, parcela_atual, total_parcelas, numero_contrato, conta_fixa_id)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                """
                 
-                supabase.table('lancamentos').insert(lancamento_quitacao).execute()
+                observacoes = f"Quitação com desconto de R$ {desconto:.2f}. Valor original: R$ {valor_total:.2f}"
+                params = (
+                    user_id, primeira['tipo'], primeira['categoria_id'],
+                    f"Quitação {primeira['descricao']} - {len(parcelas_ids)} parcelas",
+                    valor_com_desconto, data_hoje, 'pago', observacoes,
+                    False, None, None, None, None
+                )
+                
+                database.executar_query(query_insert, params, commit=True, fetch=False)
                 
                 # Excluir as parcelas quitadas
-                supabase.table('lancamentos').delete().in_('id', parcelas_ids).execute()
+                query_delete = f"DELETE FROM lancamentos WHERE id IN ({placeholders})"
+                database.executar_query(query_delete, tuple(parcelas_ids), commit=True, fetch=False)
         else:
             # Sem desconto, apenas marcar como pago
             for parcela_id in parcelas_ids:
-                supabase.table('lancamentos')\
-                    .update({'status': 'pago'})\
-                    .eq('id', parcela_id)\
-                    .execute()
+                query = "UPDATE lancamentos SET status = 'pago' WHERE id = %s"
+                database.executar_query(query, (parcela_id,), commit=True, fetch=False)
         
         return True
         
     except Exception as e:
         print(f"Erro ao quitar parcelas selecionadas: {e}")
-
         traceback.print_exc()
         return False
 
@@ -770,18 +741,23 @@ def quitar_parcelas_selecionadas(user_id, contrato_id, parcelas_ids, desconto=0)
 def gerar_relatorio_pdf(user_id, data_inicio, data_fim, nome_arquivo):
     """Gera relatório em PDF"""
     try:
-        supabase = database.conectar()
-        
         # Buscar lançamentos do período
-        response = supabase.table('lancamentos')\
-            .select('*, categorias(nome)')\
-            .eq('usuario_id', user_id)\
-            .gte('data', data_inicio)\
-            .lte('data', data_fim)\
-            .order('data')\
-            .execute()
+        query = """
+            SELECT l.*, c.nome as categoria_nome
+            FROM lancamentos l
+            LEFT JOIN categorias c ON l.categoria_id = c.id
+            WHERE l.usuario_id = %s AND l.data >= %s AND l.data <= %s
+            ORDER BY l.data
+        """
+        resultado = database.executar_query(query, (user_id, data_inicio, data_fim), fetch=True)
         
-        lancamentos = response.data if response.data else []
+        # Ajustar estrutura para compatibilidade
+        lancamentos = []
+        if resultado:
+            for r in resultado:
+                categoria_nome = r.pop('categoria_nome', None)
+                r['categorias'] = {'nome': categoria_nome} if categoria_nome else {'nome': 'N/A'}
+                lancamentos.append(r)
         
         # Criar PDF
         doc = SimpleDocTemplate(nome_arquivo, pagesize=A4)
@@ -826,8 +802,9 @@ def gerar_relatorio_pdf(user_id, data_inicio, data_fim, nome_arquivo):
             
             for l in lancamentos:
                 categoria_nome = l['categorias']['nome'] if l.get('categorias') else 'N/A'
+                data_str = str(l['data']) if isinstance(l['data'], str) else l['data'].strftime('%Y-%m-%d')
                 dados.append([
-                    l['data'],
+                    data_str,
                     l['descricao'][:30],
                     categoria_nome,
                     l['tipo'].capitalize(),
@@ -865,17 +842,22 @@ obter_conta_fixa_por_id = obter_conta_fixa
 def listar_lancamentos_periodo(user_id, data_inicio, data_fim):
     """Lista lançamentos de um período"""
     try:
-        supabase = database.conectar()
+        query = """
+            SELECT l.*, c.nome as categoria_nome
+            FROM lancamentos l
+            LEFT JOIN categorias c ON l.categoria_id = c.id
+            WHERE l.usuario_id = %s AND l.data >= %s AND l.data <= %s
+            ORDER BY l.data
+        """
+        resultado = database.executar_query(query, (user_id, data_inicio, data_fim), fetch=True)
         
-        response = supabase.table('lancamentos')\
-            .select('*, categorias(nome)')\
-            .eq('usuario_id', user_id)\
-            .gte('data', data_inicio)\
-            .lte('data', data_fim)\
-            .order('data')\
-            .execute()
+        # Ajustar estrutura para manter compatibilidade com o formato Supabase
+        if resultado:
+            for r in resultado:
+                categoria_nome = r.pop('categoria_nome', None)
+                r['categorias'] = {'nome': categoria_nome} if categoria_nome else None
         
-        return response.data if response.data else []
+        return resultado if resultado else []
     except Exception as e:
         print(f"Erro ao listar lançamentos do período: {e}")
         return []
@@ -883,28 +865,27 @@ def listar_lancamentos_periodo(user_id, data_inicio, data_fim):
 def listar_parcelas_contrato(numero_contrato):
     """Lista todas as parcelas de um contrato com formatação"""
     try:
-        supabase = database.conectar()
+        query = """
+            SELECT * FROM lancamentos 
+            WHERE numero_contrato = %s
+            ORDER BY parcela_atual
+        """
+        parcelas = database.executar_query(query, (numero_contrato,), fetch=True)
         
-        response = supabase.table('lancamentos')\
-            .select('*')\
-            .eq('numero_contrato', numero_contrato)\
-            .order('parcela_atual')\
-            .execute()
-        
-        if not response.data:
+        if not parcelas:
             return []
         
         # Formatar dados para exibição
-        from datetime import datetime
-        parcelas = response.data
-        
         for p in parcelas:
             # Formatar data
             try:
-                data_obj = datetime.strptime(p['data'], '%Y-%m-%d')
+                if isinstance(p['data'], str):
+                    data_obj = datetime.strptime(p['data'], '%Y-%m-%d')
+                else:
+                    data_obj = p['data']
                 p['data_formatada'] = data_obj.strftime('%d/%m/%Y')
             except:
-                p['data_formatada'] = p['data']
+                p['data_formatada'] = str(p['data'])
             
             # Formatar valor
             p['valor_formatado'] = f"R$ {p['valor']:.2f}"
@@ -916,7 +897,6 @@ def listar_parcelas_contrato(numero_contrato):
         
     except Exception as e:
         print(f"Erro ao listar parcelas: {e}")
-
         traceback.print_exc()
         return []
 
@@ -929,8 +909,6 @@ def trazer_despesas_pendentes_mes_anterior(user_id, ano_destino, mes_destino):
     Retorna a quantidade de lançamentos movidos
     """
     try:
-        supabase = database.conectar()
-        
         # Calcular mês anterior
         if mes_destino == 1:
             mes_origem = 12
@@ -945,13 +923,14 @@ def trazer_despesas_pendentes_mes_anterior(user_id, ano_destino, mes_destino):
         data_fim = f"{ano_origem}-{mes_origem:02d}-{ultimo_dia}"
         
         # Buscar TODOS os lançamentos pendentes do mês anterior (despesas E receitas)
-        response = supabase.table('lancamentos').select('*').eq(
-            'usuario_id', user_id
-        ).eq('status', 'pendente').gte(
-            'data', data_inicio
-        ).lte('data', data_fim).execute()
+        query = """
+            SELECT * FROM lancamentos 
+            WHERE usuario_id = %s AND status = 'pendente' 
+            AND data >= %s AND data <= %s
+        """
+        resultado = database.executar_query(query, (user_id, data_inicio, data_fim), fetch=True)
         
-        if not response.data:
+        if not resultado:
             return 0
         
         # Copiar cada lançamento para o mês destino e excluir o original
@@ -959,37 +938,38 @@ def trazer_despesas_pendentes_mes_anterior(user_id, ano_destino, mes_destino):
         primeiro_dia_destino = f"{ano_destino}-{mes_destino:02d}-01"
         ids_para_excluir = []
         
-        for lanc in response.data:
+        query_insert = """
+            INSERT INTO lancamentos 
+            (usuario_id, tipo, categoria_id, descricao, valor, data, status, observacoes, 
+             eh_parcelado, parcela_atual, total_parcelas, numero_contrato, conta_fixa_id)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        """
+        
+        for lanc in resultado:
             # Criar novo lançamento no mês destino
-            novo_lanc = {
-                'usuario_id': user_id,
-                'tipo': lanc['tipo'],  # Mantém o tipo original (despesa ou receita)
-                'categoria_id': lanc['categoria_id'],
-                'descricao': f"{lanc['descricao']} (Pend. {mes_origem:02d}/{ano_origem})",
-                'valor': lanc['valor'],
-                'data': primeiro_dia_destino,
-                'status': 'pendente',
-                'observacoes': (lanc.get('observacoes', '') or '') + f" | Movido do mês {mes_origem:02d}/{ano_origem}",
-                'eh_parcelado': lanc.get('eh_parcelado', False),
-                'parcela_atual': lanc.get('parcela_atual'),
-                'total_parcelas': lanc.get('total_parcelas'),
-                'numero_contrato': lanc.get('numero_contrato'),
-                'conta_fixa_id': lanc.get('conta_fixa_id')
-            }
+            params = (
+                user_id, lanc['tipo'], lanc['categoria_id'],
+                f"{lanc['descricao']} (Pend. {mes_origem:02d}/{ano_origem})",
+                lanc['valor'], primeiro_dia_destino, 'pendente',
+                (lanc.get('observacoes') or '') + f" | Movido do mês {mes_origem:02d}/{ano_origem}",
+                lanc.get('eh_parcelado', False), lanc.get('parcela_atual'),
+                lanc.get('total_parcelas'), lanc.get('numero_contrato'), lanc.get('conta_fixa_id')
+            )
             
-            supabase.table('lancamentos').insert(novo_lanc).execute()
+            database.executar_query(query_insert, params, commit=True, fetch=False)
             ids_para_excluir.append(lanc['id'])
             contador += 1
         
         # Excluir os lançamentos originais do mês anterior
         if ids_para_excluir:
-            supabase.table('lancamentos').delete().in_('id', ids_para_excluir).execute()
+            placeholders = ','.join(['%s'] * len(ids_para_excluir))
+            query_delete = f"DELETE FROM lancamentos WHERE id IN ({placeholders})"
+            database.executar_query(query_delete, tuple(ids_para_excluir), commit=True, fetch=False)
         
         return contador
         
     except Exception as e:
         print(f"Erro ao trazer despesas pendentes: {e}")
-
         traceback.print_exc()
         return 0
 
@@ -1000,8 +980,6 @@ def criar_lancamento_saldo_anterior(user_id, ano_destino, mes_destino):
     Retorna True se criou lançamento, False caso contrário
     """
     try:
-        supabase = database.conectar()
-        
         # Calcular mês anterior
         if mes_destino == 1:
             mes_anterior = 12
@@ -1018,54 +996,52 @@ def criar_lancamento_saldo_anterior(user_id, ano_destino, mes_destino):
             return False
         
         # Buscar categoria "Saldo Anterior" ou criar se não existir
-        response = supabase.table('categorias').select('id').eq(
-            'usuario_id', user_id
-        ).eq('nome', 'Saldo Anterior').execute()
+        query = "SELECT id FROM categorias WHERE usuario_id = %s AND nome = 'Saldo Anterior'"
+        resultado = database.executar_query(query, (user_id,), fetch=True)
         
-        if response.data:
-            categoria_id = response.data[0]['id']
+        if resultado:
+            categoria_id = resultado[0]['id']
         else:
             # Criar categoria
-            nova_cat = supabase.table('categorias').insert({
-                'usuario_id': user_id,
-                'nome': 'Saldo Anterior',
-                'tipo': 'receita' if saldo > 0 else 'despesa'
-            }).execute()
-            categoria_id = nova_cat.data[0]['id']
+            query_insert = """
+                INSERT INTO categorias (usuario_id, nome, tipo) 
+                VALUES (%s, %s, %s) RETURNING id
+            """
+            tipo_cat = 'receita' if saldo > 0 else 'despesa'
+            nova_cat = database.executar_query(query_insert, (user_id, 'Saldo Anterior', tipo_cat), 
+                                              commit=True, fetch=True)
+            categoria_id = nova_cat[0]['id']
         
         # Criar lançamento
         primeiro_dia = f"{ano_destino}-{mes_destino:02d}-01"
         
+        query_lanc = """
+            INSERT INTO lancamentos 
+            (usuario_id, tipo, categoria_id, descricao, valor, data, status, observacoes)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+        """
+        
         if saldo > 0:
             # Saldo positivo = criar receita
-            novo_lanc = {
-                'usuario_id': user_id,
-                'tipo': 'receita',
-                'categoria_id': categoria_id,
-                'descricao': f'Saldo do mês {mes_anterior:02d}/{ano_anterior}',
-                'valor': abs(saldo),
-                'data': primeiro_dia,
-                'status': 'pago',
-                'observacoes': f'Saldo positivo trazido automaticamente: R$ {saldo:.2f}'
-            }
+            params = (
+                user_id, 'receita', categoria_id,
+                f'Saldo do mês {mes_anterior:02d}/{ano_anterior}',
+                abs(saldo), primeiro_dia, 'pago',
+                f'Saldo positivo trazido automaticamente: R$ {saldo:.2f}'
+            )
         else:
             # Saldo negativo = criar despesa
-            novo_lanc = {
-                'usuario_id': user_id,
-                'tipo': 'despesa',
-                'categoria_id': categoria_id,
-                'descricao': f'Déficit do mês {mes_anterior:02d}/{ano_anterior}',
-                'valor': abs(saldo),
-                'data': primeiro_dia,
-                'status': 'pago',
-                'observacoes': f'Saldo negativo trazido automaticamente: R$ {saldo:.2f}'
-            }
+            params = (
+                user_id, 'despesa', categoria_id,
+                f'Déficit do mês {mes_anterior:02d}/{ano_anterior}',
+                abs(saldo), primeiro_dia, 'pago',
+                f'Saldo negativo trazido automaticamente: R$ {saldo:.2f}'
+            )
         
-        supabase.table('lancamentos').insert(novo_lanc).execute()
+        database.executar_query(query_lanc, params, commit=True, fetch=False)
         return True
         
     except Exception as e:
         print(f"Erro ao criar lançamento de saldo anterior: {e}")
-
         traceback.print_exc()
         return False

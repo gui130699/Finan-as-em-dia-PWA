@@ -1,11 +1,12 @@
-# 💰 Finanças em Dia - PWA
+# 💰 Finanças em Dia - PWA (PostgreSQL Local)
 
-Sistema completo de controle financeiro pessoal desenvolvido com Flask e Supabase (PostgreSQL).  
-**Agora como Progressive Web App (PWA)!** 📱
+Sistema completo de controle financeiro pessoal desenvolvido com Flask e PostgreSQL.  
+**Agora como Progressive Web App (PWA)!** 📱  
+**✨ Versão 100% LOCAL - Sem dependências de nuvem!**
 
 ![Python](https://img.shields.io/badge/Python-3.14-blue)
 ![Flask](https://img.shields.io/badge/Flask-3.0.0-green)
-![Supabase](https://img.shields.io/badge/Supabase-2.24.0-orange)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-blue)
 ![PWA](https://img.shields.io/badge/PWA-Ready-success)
 
 ## 🚀 Funcionalidades
@@ -18,7 +19,7 @@ Sistema completo de controle financeiro pessoal desenvolvido com Flask e Supabas
 - ✅ **Relatórios**: Visualize e exporte relatórios em PDF por período
 - ✅ **Multi-usuário**: Sistema de login com senhas criptografadas (bcrypt)
 - ✅ **Dashboard**: Resumo mensal com totais de receitas, despesas e saldo
-- ✅ **Banco em Nuvem**: Dados armazenados no Supabase (PostgreSQL)
+- ✅ **Banco Local**: Dados armazenados localmente em PostgreSQL
 
 ## 🌟 Recursos PWA
 
@@ -32,64 +33,55 @@ Sistema completo de controle financeiro pessoal desenvolvido com Flask e Supabas
 ## 📋 Pré-requisitos
 
 - Python 3.10 ou superior
-- Conta no [Supabase](https://supabase.com) (gratuita)
+- PostgreSQL 12 ou superior instalado localmente
 - pip (gerenciador de pacotes Python)
 
 ## 🔧 Instalação Rápida
 
-### 1. Clone o repositório
+### 1. Instale o PostgreSQL
+- Download: https://www.postgresql.org/download/windows/
+- Durante a instalação, **anote a senha do usuário postgres**
+
+### 2. Clone o repositório
 ```bash
 git clone https://github.com/gui130699/Financeiro-em-dia.git
 cd Financeiro-em-dia
 ```
 
-### 2. Crie e ative o ambiente virtual
-```bash
-python -m venv venv
-venv\Scripts\activate  # Windows
+### 3. Configure o banco de dados
+
+**Crie o banco no PostgreSQL:**
+```sql
+-- Abra o SQL Shell (psql) ou pgAdmin
+CREATE DATABASE financas_em_dia;
+\c financas_em_dia
+\i 'C:/caminho/completo/para/criar_tabelas.sql'
 ```
 
-### 3. Instale as dependências
+### 4. Configure as credenciais
+
+```bash
+# Copie o arquivo de exemplo
+copy .env.example .env
+
+# Edite .env com a senha do seu PostgreSQL:
+DB_PASSWORD=sua_senha_do_postgres
+```
+
+### 5. Instale as dependências e execute
 ```bash
 pip install -r requirements.txt
-```
-
-### 4. Configure o Supabase
-1. Crie uma conta em [supabase.com](https://supabase.com)
-2. Crie um novo projeto
-3. Execute o script `criar_tabelas_supabase.sql` no SQL Editor
-4. Copie a URL e anon key (Settings > API)
-
-### 5. Configure as credenciais (IMPORTANTE! 🔒)
-
-**Backend (Flask):**
-```bash
-# Copie o arquivo de exemplo
-cp .env.example .env
-
-# Edite .env com suas credenciais
-# SUPABASE_URL=sua_url_aqui
-# SUPABASE_KEY=sua_chave_aqui
-```
-
-**Frontend (PWA):**
-```bash
-# Copie o arquivo de exemplo
-cp static/js/config.local.example.js static/js/config.local.js
-
-# Edite config.local.js com suas credenciais
-```
-
-⚠️ **NUNCA commite os arquivos `.env` e `config.local.js`!** Eles estão no `.gitignore` por segurança.
-
-📖 Leia mais em [SEGURANCA.md](SEGURANCA.md)
-
-### 6. Execute o aplicativo
-```bash
 python app.py
 ```
 
 Acesse: http://127.0.0.1:5000
+
+## 📖 Documentação Completa
+
+- **[INICIO_RAPIDO.md](INICIO_RAPIDO.md)** - Guia de 5 minutos
+- **[RESUMO_MIGRACAO.md](RESUMO_MIGRACAO.md)** - Detalhes da migração e configuração
+- **[INSTRUCOES_MIGRACAO_POSTGRESQL.md](INSTRUCOES_MIGRACAO_POSTGRESQL.md)** - Guia completo passo a passo
+- **[COMANDOS_POSTGRESQL.md](COMANDOS_POSTGRESQL.md)** - Comandos úteis do PostgreSQL
 
 ## 📱 Instalando como PWA
 
@@ -109,9 +101,9 @@ Acesse: http://127.0.0.1:5000
 ## 📁 Estrutura do Projeto
 
 ```
-Fin/
+Financas-em-dia-PWA/
 ├── app.py                    # Aplicação Flask principal
-├── database.py               # Gerenciamento do banco Supabase
+├── database.py               # Gerenciamento do PostgreSQL
 ├── models.py                 # Lógica de negócio
 ├── models_supabase.py        # Modelos específicos Supabase
 ├── config.py                 # Configurações (URL e Key)
@@ -125,20 +117,37 @@ Fin/
 │   ├── home.html           # Dashboard
 │   ├── lancamentos.html    # Lançamentos
 │   ├── categorias.html     # Categorias
-│   ├── contas_fixas.html   # Contas fixas
+├── models.py                 # Lógica de negócio (PostgreSQL)
+├── config.py                 # Configurações do banco
+├── criar_tabelas.sql         # Script SQL para criar tabelas
+├── configurar.bat            # Script de configuração automática
+├── requirements.txt          # Dependências Python
+├── .env.example              # Exemplo de variáveis de ambiente
+│
+├── templates/                # Templates HTML (Jinja2)
+│   ├── base.html
+│   ├── dashboard.html
+│   ├── lancamentos.html
+│   ├── contas_fixas.html
 │   ├── contas_parceladas.html
 │   ├── relatorios.html
-│   ├── offline.html        # Página offline PWA
+│   ├── offline.html          # Página offline PWA
 │   └── ...
 │
-└── static/                  # Arquivos estáticos
-    ├── manifest.json       # Configuração PWA
-    ├── service-worker.js   # Service Worker
-    ├── icons/              # Ícones PWA (todos os tamanhos)
-    ├── css/estilo.css
-    └── js/
-        ├── scripts.js
-        └── pwa-install.js  # Lógica de instalação
+├── static/                   # Arquivos estáticos
+│   ├── manifest.json         # Configuração PWA
+│   ├── service-worker.js     # Service Worker
+│   ├── icons/                # Ícones PWA (todos os tamanhos)
+│   ├── css/estilo.css
+│   └── js/
+│       ├── scripts.js
+│       └── pwa-install.js    # Lógica de instalação
+│
+└── docs/                     # Documentação
+    ├── INICIO_RAPIDO.md
+    ├── RESUMO_MIGRACAO.md
+    ├── INSTRUCOES_MIGRACAO_POSTGRESQL.md
+    └── COMANDOS_POSTGRESQL.md
 ```
 
 ## 🎯 Como Usar
@@ -152,7 +161,7 @@ Fin/
 ### 2. Lançamentos
 - **Simples**: Preencha data, tipo, valor e descrição
 - **Parcelado**: Defina número de parcelas (geração automática)
-- **Conta Fixa**: Marque como fixa e defina dia de vencimento
+- **Conta Fixa**: Relacione com uma conta fixa cadastrada
 
 ### 3. Contas Fixas
 - Gerencie contas recorrentes (aluguel, internet, etc.)

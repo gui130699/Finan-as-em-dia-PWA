@@ -1,7 +1,6 @@
 ﻿# -*- coding: utf-8 -*-
 """
-Configurações do Supabase
-Usa variáveis de ambiente em produção ou valores padrão em desenvolvimento
+Configurações do Banco de Dados PostgreSQL Local
 """
 import os
 from dotenv import load_dotenv
@@ -9,12 +8,17 @@ from dotenv import load_dotenv
 # Carregar variáveis do arquivo .env
 load_dotenv()
 
-# Credenciais do Supabase (usar variáveis de ambiente)
-# Para desenvolvimento local, crie um arquivo .env na raiz do projeto
-# Para produção, configure as variáveis de ambiente no servidor
-SUPABASE_URL = os.environ.get('SUPABASE_URL', '')
-SUPABASE_KEY = os.environ.get('SUPABASE_KEY', '')
+# Configurações do PostgreSQL Local
+DB_HOST = os.environ.get('DB_HOST', 'localhost')
+DB_PORT = os.environ.get('DB_PORT', '5432')
+DB_NAME = os.environ.get('DB_NAME', 'financas_em_dia')
+DB_USER = os.environ.get('DB_USER', 'postgres')
+DB_PASSWORD = os.environ.get('DB_PASSWORD', '')
 
-if not SUPABASE_URL or not SUPABASE_KEY:
-    print('[AVISO] Configure as variáveis SUPABASE_URL e SUPABASE_KEY')
-    print('Crie um arquivo .env ou configure as variáveis de ambiente do sistema')
+# String de conexão PostgreSQL
+DATABASE_URL = f"postgresql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
+
+if not DB_PASSWORD:
+    print('[AVISO] Configure a senha do PostgreSQL na variável DB_PASSWORD')
+    print('Crie um arquivo .env na raiz do projeto ou configure as variáveis de ambiente')
+

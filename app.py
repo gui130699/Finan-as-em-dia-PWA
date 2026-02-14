@@ -13,14 +13,14 @@ app = Flask(__name__)
 # Usar variável de ambiente em produção ou chave padrão em desenvolvimento
 app.secret_key = os.environ.get('SECRET_KEY', 'financas_em_dia_2025_seguro_web_app')
 
-# Testar conexão com Supabase
+# Testar conexão com PostgreSQL local
 try:
     if not database.inicializar_banco():
-        print("\n⚠️  AVISO: Não foi possível conectar ao Supabase.")
-        print("Execute o SQL em 'criar_tabelas_supabase.sql' no painel do Supabase primeiro!\n")
+        print("\n⚠️  AVISO: Não foi possível conectar ao PostgreSQL.")
+        print("Execute o SQL em 'criar_tabelas.sql' no PostgreSQL primeiro!\n")
 except Exception as e:
-    print(f"\n⚠️  ERRO ao conectar com Supabase: {e}")
-    print("Verifique se o arquivo 'config.py' está correto e se as tabelas foram criadas.\n")
+    print(f"\n⚠️  ERRO ao conectar com PostgreSQL: {e}")
+    print("Verifique se o arquivo 'config.py' e '.env' estão corretos e se as tabelas foram criadas.\n")
 
 # Decorator para verificar login
 def login_required(f):
