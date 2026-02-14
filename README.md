@@ -105,8 +105,7 @@ Financas-em-dia-PWA/
 ├── app.py                    # Aplicação Flask principal
 ├── database.py               # Gerenciamento do PostgreSQL
 ├── models.py                 # Lógica de negócio
-├── models_supabase.py        # Modelos específicos Supabase
-├── config.py                 # Configurações (URL e Key)
+├── config.py                 # Configurações do banco local
 ├── requirements.txt          # Dependências
 ├── iniciar.bat              # Script para iniciar (Windows)
 ├── Procfile                 # Deploy Heroku
@@ -187,7 +186,7 @@ Financas-em-dia-PWA/
 ## 🛠️ Tecnologias
 
 - **Backend**: Python 3.14, Flask 3.0.0
-- **Banco de Dados**: PostgreSQL via Supabase 2.24.0
+- **Banco de Dados**: PostgreSQL local
 - **Frontend**: HTML5, CSS3, JavaScript
 - **Framework CSS**: Bootstrap 5
 - **PWA**: Service Worker, Manifest, Cache API
@@ -215,19 +214,21 @@ Use o Lighthouse no Chrome DevTools:
 
 **Meta**: Score 90+ para PWA ✅
 
-## 🌐 Acessando via GitHub Pages
+## 🌐 Execução
 
-A aplicação está disponível como PWA estática em:
-**https://gui130699.github.io/Finan-as-em-dia-PWA/**
+A aplicação roda localmente com Flask + PostgreSQL.
 
-Para configurar seu próprio repositório:
+Use:
 
-1. **Vá para Settings > Pages**
-2. **Source**: Selecione "Deploy from a branch"
-3. **Branch**: Escolha `main` e pasta `/root`
-4. **Save** e aguarde o deploy (2-3 minutos)
+```bash
+python app.py
+```
 
-**Nota**: A aplicação é 100% cliente (JavaScript + Supabase), não precisa de servidor Python!
+Depois acesse:
+
+```
+http://127.0.0.1:5000
+```
 
 ## 🔍 Solução de Problemas
 

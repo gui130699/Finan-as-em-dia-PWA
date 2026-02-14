@@ -56,7 +56,6 @@ desktop.ini
 *.tmp
 
 # Configurações locais (contém credenciais)
-static/js/config.local.js
 config_local.py
 *.bak
 *.cache

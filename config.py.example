@@ -1,18 +1,3 @@
-# config.py.example - Template de configuração
-# Copie este arquivo para config.py e preencha com suas credenciais do Supabase
-
-# URL do projeto Supabase
-# Exemplo: https://abcdefghijklmnop.supabase.co
-SUPABASE_URL = 'https://seu-projeto.supabase.co'
-
-# Chave anon/public do Supabase
-# Encontrada em: Settings > API > Project API keys > anon public
-SUPABASE_KEY = 'sua-chave-anon-aqui'
-
-# IMPORTANTE:
-# 1. Nunca commite o arquivo config.py real (ele está no .gitignore)
-# 2. Mantenha suas chaves em segredo
-# 3. Use a chave 'anon' para a aplicação web
-# 4. Execute os scripts SQL antes de usar a aplicação:
-#    - criar_tabelas_supabase.sql
-#    - corrigir_rls_supabase.sql
+# Arquivo legado mantido por compatibilidade.
+# A configuração atual da aplicação é feita via variáveis de ambiente no arquivo `.env`.
+# Use `.env.example` como referência.

@@ -269,7 +269,7 @@ def listar_lancamentos_mes(user_id, ano, mes):
         """
         resultado = database.executar_query(query, (user_id, data_inicio, data_fim), fetch=True)
         
-        # Ajustar estrutura para manter compatibilidade com o formato Supabase
+        # Ajustar estrutura para manter compatibilidade com o formato de dados esperado
         if resultado:
             for r in resultado:
                 categoria_nome = r.pop('categoria_nome', None)
@@ -439,7 +439,7 @@ def listar_contas_fixas(user_id, apenas_ativas=True):
             """
             resultado = database.executar_query(query, (user_id,), fetch=True)
         
-        # Ajustar estrutura para manter compatibilidade com o formato Supabase
+        # Ajustar estrutura para manter compatibilidade com o formato de dados esperado
         if resultado:
             for r in resultado:
                 categoria_nome = r.pop('categoria_nome', None)
@@ -851,7 +851,7 @@ def listar_lancamentos_periodo(user_id, data_inicio, data_fim):
         """
         resultado = database.executar_query(query, (user_id, data_inicio, data_fim), fetch=True)
         
-        # Ajustar estrutura para manter compatibilidade com o formato Supabase
+        # Ajustar estrutura para manter compatibilidade com o formato de dados esperado
         if resultado:
             for r in resultado:
                 categoria_nome = r.pop('categoria_nome', None)

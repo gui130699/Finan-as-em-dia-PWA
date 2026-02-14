@@ -10,8 +10,7 @@ const CORE_CACHE = [
   BASE_PATH + '/static/js/app.js',
   BASE_PATH + '/static/js/scripts.js',
   BASE_PATH + '/static/offline.html',
-  'https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css',
-  'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2'
+  'https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css'
 ];
 
 // Recursos para cachear sob demanda
@@ -57,11 +56,6 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   // Apenas cachear requisições GET
   if (event.request.method !== 'GET') {
-    return;
-  }
-
-  // Ignorar requisições de API do Supabase
-  if (event.request.url.includes('supabase.co')) {
     return;
   }
 
