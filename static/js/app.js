@@ -9,11 +9,70 @@
 const SUPABASE_URL = window.SUPABASE_CONFIG?.url || '';
 const SUPABASE_KEY = window.SUPABASE_CONFIG?.key || '';
 
+function createMockSupabaseClient() {
+    const buildQuery = () => {
+        const state = { single: false, inserted: null };
+
+        const proxy = new Proxy({}, {
+            get(_, prop) {
+                if (prop === 'single') {
+                    return () => {
+                        state.single = true;
+                        return proxy;
+                    };
+                }
+
+                if (prop === 'insert') {
+                    return (payload) => {
+                        const list = Array.isArray(payload) ? payload : [payload];
+                        state.inserted = {
+                            id: Date.now(),
+                            ...(list[0] || {})
+                        };
+                        return proxy;
+                    };
+                }
+
+                if (prop === 'then') {
+                    return (resolve) => {
+                        const data = state.single ? (state.inserted || null) : [];
+                        resolve({ data, error: null });
+                    };
+                }
+
+                return () => proxy;
+            }
+        });
+
+        return proxy;
+    };
+
+    return {
+        from() {
+            return buildQuery();
+        }
+    };
+}
+
+const HAS_SUPABASE_RUNTIME = (
+    typeof window.supabase !== 'undefined' &&
+    typeof window.supabase.createClient === 'function' &&
+    !!SUPABASE_URL &&
+    !!SUPABASE_KEY
+);
+
 // Criar cliente Supabase global apenas uma vez
 // USAR DIRETAMENTE window.supabaseClient em vez de criar variável local
 if (typeof window.supabaseClient === 'undefined') {
-    window.supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-    console.log('✅ Cliente Supabase criado');
+    if (HAS_SUPABASE_RUNTIME) {
+        window.supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        window.__demoMode = false;
+        console.log('✅ Cliente Supabase criado');
+    } else {
+        window.supabaseClient = createMockSupabaseClient();
+        window.__demoMode = true;
+        console.warn('⚠️ Supabase não configurado: executando em modo demonstração (somente interface).');
+    }
 }
 
 // Atalho para facilitar acesso (mas não usar const/let/var para evitar redeclaração)
@@ -127,6 +186,14 @@ function updateConnectionStatus() {
 async function checkAuth() {
     const userId = localStorage.getItem('userId');
     const userName = localStorage.getItem('userName');
+
+    if (window.__demoMode && (!userId || !userName)) {
+        currentUser = { id: 1, nome: 'Visitante (Demo)' };
+        localStorage.setItem('userId', '1');
+        localStorage.setItem('userName', 'Visitante (Demo)');
+        showPage('home');
+        return;
+    }
     
     if (userId && userName) {
         currentUser = { id: parseInt(userId), nome: userName };
